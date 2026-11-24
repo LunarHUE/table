@@ -1,0 +1,27 @@
+{
+  "name": "table",
+  // The shared repo pod image from LunarHUE/workspace-config. It carries Nix and
+  // loads this flake's default dev shell into every shell. The image is private:
+  // run `docker login ghcr.io` first when opening this outside Coder.
+  "image": "ghcr.io/lunarhue/devcontainer-base:main",
+  // The image's own command is sshd for repo pods. A local devcontainer just idles.
+  "overrideCommand": true,
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  // /nix starts empty, like in the cluster. The volume keeps the store between rebuilds.
+  "mounts": ["source=devcontainer-nix,target=/nix,type=volume"],
+  "remoteUser": "coder",
+  "containerUser": "coder",
+  "updateRemoteUserUID": false,
+  // Builds and caches the flake's dev environment. Interactive shells then load it.
+  "postCreateCommand": "bash -c '. /usr/local/lib/repo-env/repo-env.bash && repo_env_file >/dev/null'",
+  "customizations": {
+    "vscode": {
+      "extensions": ["jnoortheen.nix-ide"],
+      "settings": {
+        "nix.enableLanguageServer": true,
+        "nix.serverPath": "nil"
+      }
+    }
+  }
+}
