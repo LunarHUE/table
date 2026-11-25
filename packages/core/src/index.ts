@@ -1,6 +1,7 @@
 // The framework-free core: reactive cells, keyed stores for rows, columns
-// and cells, diagnostics, the bindings that let apps own state slices, and
-// `defineFeature`, which every table feature is made with.
+// and cells, diagnostics, the bindings that let apps own state slices,
+// `defineFeature`, which every table feature is made with, and
+// `defineTable` with its column helpers.
 
 /** The package's name, as published. */
 export const coreName = "@lunarhue/table-core";
@@ -32,6 +33,7 @@ export {
 } from "./bindings.js";
 export {
   ROW_STAGE_PHASES,
+  type ColumnId,
   type ColumnInfo,
   type ColumnViewInfo,
   type ColumnZone,
@@ -42,6 +44,7 @@ export {
   type RowLike,
   type RowsEffect,
   type RowStagePhase,
+  type SortableColumnId,
 } from "./contract.js";
 export {
   defineFeature,
@@ -82,3 +85,34 @@ export {
   type ServerRequestMap,
   type WriteOptions,
 } from "./feature.js";
+export {
+  defineColumn,
+  defineColumns,
+  withProps,
+  type AnyColumn,
+  type Column,
+  type ColumnBuilder,
+  type ColumnMeta,
+  type ColumnOptions,
+  type RowIdContext,
+} from "./column.js";
+export {
+  defineTable,
+  type AnyTableDef,
+  type ColumnIdOf,
+  type ColumnIds,
+  type ColumnsOf,
+  type FeaturesOf,
+  type InitialStateFor,
+  type NeedsInitialState,
+  type RequestOf,
+  type RowOf,
+  type SortableColumnIdOf,
+  type SortableColumnIds,
+  type StateOf,
+  type Table,
+  type TableConfig,
+  type TableDef,
+  type TableOf,
+  type WithColumnIds,
+} from "./define-table.js";
