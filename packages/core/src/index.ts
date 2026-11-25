@@ -174,9 +174,11 @@ export {
   type TableStoreOptions,
 } from "./store.js";
 export {
+  clampPageIndex,
   computePaginationMeta,
   pagination,
   remotePagination,
+  stepPage,
   type PaginationApi,
   type PaginationMeta,
   type PaginationMode,

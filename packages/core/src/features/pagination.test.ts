@@ -5,7 +5,15 @@ import { defineTable } from "../define-table.js";
 import { defineFeature } from "../feature.js";
 import { filtering, sorting, users, type User } from "../fixtures/table.js";
 import { createTableStore } from "../store.js";
-import { computePaginationMeta, pagination, remotePagination, type PaginationOptions, type PaginationState } from "./pagination.js";
+import {
+  clampPageIndex,
+  computePaginationMeta,
+  pagination,
+  remotePagination,
+  stepPage,
+  type PaginationOptions,
+  type PaginationState,
+} from "./pagination.js";
 
 const columns = defineTable<User>()({ getRowId: (row) => row.id, columns: (col) => [col.key("name", { sortable: true })] }).columns;
 
@@ -86,12 +94,12 @@ describe("pagination", () => {
     expect(ids(store.computeRows(users))).toEqual(["c", "d"]);
   });
 
-  it("gives no rows for empty data or a page past the end", () => {
+  it("gives no rows for empty data, and the last page for a page past the end", () => {
     const store = createTableStore(clientTable({ sizes: [2] }));
     expect(store.computeRows([]).rows).toEqual([]);
     store.pagination.setPage(9);
     const view = store.computeRows(users);
-    expect(view.rows).toEqual([]);
+    expect(ids(view)).toEqual(["c", "d"]);
     expect(view.matchingCount).toBe(4);
   });
 
@@ -178,8 +186,9 @@ describe("pagination with detail rows", () => {
     expect(ids(store.computeRows(users))).toEqual(["a", "b", "c", "c:detail1"]);
     store.pagination.setPage(1);
     expect(ids(store.computeRows(users))).toEqual(["d", "d:detail1"]);
+    // Past the end, the last page again.
     store.pagination.setPage(2);
-    expect(store.computeRows(users).rows).toEqual([]);
+    expect(ids(store.computeRows(users))).toEqual(["d", "d:detail1"]);
   });
 
   it("counts the same matching rows and pages whether rows are expanded or not", () => {
@@ -206,6 +215,80 @@ describe("pagination with detail rows", () => {
     expect(ids(store.computeRows(users))).toEqual(["a.2", "b"]);
     store.pagination.setPage(2);
     expect(ids(store.computeRows(users))).toEqual(["c", "d"]);
+  });
+});
+
+/** `n` users with ids "u0", "u1" and on. */
+const many = (n: number): User[] => Array.from({ length: n }, (_, i) => ({ id: `u${i}`, name: `User ${i}`, email: `u${i}@example.com`, age: i }));
+
+describe("pagination when the rows shrink", () => {
+  it("shows the last page when the data shrinks past the current page, and keeps the state", () => {
+    const store = createTableStore(clientTable({ sizes: [10] }));
+    expect(ids(store.computeRows(many(100)))).toHaveLength(10);
+    store.pagination.setPage(9);
+    expect(ids(store.computeRows(many(100)))[0]).toBe("u90");
+    const shrunk = store.computeRows(many(15));
+    expect(ids(shrunk)).toEqual(["u10", "u11", "u12", "u13", "u14"]);
+    expect(shrunk).toMatchObject({ matchingCount: 15, totalCount: 15 });
+    expect(store.getFeatureState("pagination").pageIndex).toBe(9);
+    const meta = computePaginationMeta(store.getFeatureState("pagination"), shrunk.totalCount, [10], true);
+    expect(meta).toMatchObject({ pageIndex: 1, pageCount: 2, canPrev: true, canNext: false });
+  });
+
+  it("shows the last page when a filter written without a page reset leaves fewer pages", () => {
+    const store = createTableStore(clientTable({ sizes: [2] }));
+    store.pagination.setPage(1);
+    store.filtering.setQuietly("a");
+    // "a" matches Ada, Cara and Dan, two pages of two.
+    expect(ids(store.computeRows(users))).toEqual(["d"]);
+    store.filtering.setQuietly("ad");
+    expect(ids(store.computeRows(users))).toEqual(["a"]);
+  });
+
+  it("shows page 0 with no rows when the data empties", () => {
+    const store = createTableStore(clientTable({ sizes: [10] }, { pageIndex: 4, pageSize: 10 }));
+    const view = store.computeRows([]);
+    expect(view.rows).toEqual([]);
+    expect(view.totalCount).toBe(0);
+    expect(computePaginationMeta(store.getFeatureState("pagination"), 0, [10], true)).toMatchObject({
+      pageIndex: 0,
+      pageCount: 0,
+      canPrev: false,
+      canNext: false,
+    });
+  });
+
+  it("goes back to the page the state asks for when the data grows again", () => {
+    const store = createTableStore(clientTable({ sizes: [10] }, { pageIndex: 3, pageSize: 10 }));
+    expect(ids(store.computeRows(many(15)))[0]).toBe("u10");
+    expect(ids(store.computeRows(many(40)))[0]).toBe("u30");
+  });
+
+  it("keeps detail rows with their row on the last page", () => {
+    const store = createTableStore(detailTable(3, { c: 1, d: 2 }, 5));
+    const view = store.computeRows(users, { pageSize: 3 });
+    expect(ids(view)).toEqual(["d", "d:detail1", "d:detail2"]);
+    expect(view).toMatchObject({ matchingCount: 4, totalCount: 4, pageCount: 2 });
+    expect(ids(store.computeRows(users.slice(0, 3)))).toEqual(["a", "b", "c", "c:detail1"]);
+  });
+
+  it("counts only data rows when it picks the last page", () => {
+    // Four data rows and five detail rows make two pages of three, not five.
+    const store = createTableStore(detailTable(3, { a: 1, b: 2, c: 2 }, 4));
+    expect(ids(store.computeRows(users))).toEqual(["d"]);
+  });
+
+  it("leaves remotePagination's page alone while the count is unknown or 0", () => {
+    const store = createTableStore(serverTable());
+    store.pagination.setPage(5);
+    const loading = store.computeRows([]);
+    expect(loading.totalCount).toBe(0);
+    expect(store.getRequest().pagination).toEqual({ pageIndex: 5, pageSize: 10 });
+    const meta = computePaginationMeta(store.getFeatureState("pagination"), loading.totalCount);
+    expect(meta).toMatchObject({ pageIndex: 5, pageCount: 0, canPrev: true, canNext: false });
+    const known = computePaginationMeta(store.getFeatureState("pagination"), 15);
+    expect(known).toMatchObject({ pageIndex: 5, pageCount: 2, canPrev: true, canNext: false });
+    expect(ids(store.computeRows(users, { totalCount: 15 }))).toEqual(["a", "b", "c", "d"]);
   });
 });
 
@@ -338,9 +421,52 @@ describe("computePaginationMeta", () => {
     expect(computePaginationMeta(page(3), 31).canNext).toBe(false);
   });
 
+  it("leaves a page past the end alone without clamp", () => {
+    expect(computePaginationMeta(page(9), 15)).toMatchObject({ pageIndex: 9, pageCount: 2, canPrev: true, canNext: false });
+  });
+
+  it("reads a page past the end as the last page with clamp", () => {
+    expect(computePaginationMeta(page(9), 15, undefined, true)).toMatchObject({ pageIndex: 1, pageCount: 2, canPrev: true, canNext: false });
+    expect(computePaginationMeta(page(9), 5, undefined, true)).toMatchObject({ pageIndex: 0, pageCount: 1, canPrev: false, canNext: false });
+    expect(computePaginationMeta(page(9), 0, undefined, true)).toMatchObject({ pageIndex: 0, pageCount: 0, canPrev: false, canNext: false });
+    expect(computePaginationMeta(page(1), 31, undefined, true)).toMatchObject({ pageIndex: 1, canPrev: true, canNext: true });
+  });
+
   it("passes the sizes and cursor through", () => {
     const meta = computePaginationMeta({ pageIndex: 0, pageSize: 5, cursor: "abc" }, 12, [5, 15]);
     expect(meta.sizes).toEqual([5, 15]);
     expect(meta.cursor).toBe("abc");
+  });
+});
+
+describe("clampPageIndex", () => {
+  it("keeps a page in range and moves one past the end to the last page, or 0", () => {
+    expect(clampPageIndex(1, 3)).toBe(1);
+    expect(clampPageIndex(9, 2)).toBe(1);
+    expect(clampPageIndex(9, 0)).toBe(0);
+    expect(clampPageIndex(0, 0)).toBe(0);
+  });
+});
+
+describe("stepPage", () => {
+  it("steps within the pages and stays put at either end", () => {
+    expect(stepPage(1, 3, 1)).toBe(2);
+    expect(stepPage(2, 3, 1)).toBe(2);
+    expect(stepPage(1, 3, -1)).toBe(0);
+    expect(stepPage(0, 3, -1)).toBe(0);
+    expect(stepPage(0, 0, 1)).toBe(0);
+  });
+
+  it("steps from the page shown with clamp", () => {
+    expect(stepPage(9, 2, -1, true)).toBe(0);
+    expect(stepPage(9, 2, 1, true)).toBe(9);
+    expect(stepPage(9, 1, -1, true)).toBe(9);
+    expect(stepPage(9, 0, -1, true)).toBe(9);
+  });
+
+  it("steps from the state's page without clamp, as remotePagination does while the count is unknown", () => {
+    expect(stepPage(5, 0, -1)).toBe(4);
+    expect(stepPage(9, 2, -1)).toBe(8);
+    expect(stepPage(5, 0, 1)).toBe(5);
   });
 });

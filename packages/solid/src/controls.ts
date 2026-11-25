@@ -3,6 +3,7 @@ import {
   computeSelectAllState,
   computeSelectionSummary,
   isFiltered,
+  stepPage,
   type InitialState,
   type PaginationApi,
   type PaginationMeta,
@@ -46,21 +47,25 @@ const metaKeys = ["pageIndex", "pageSize", "pageCount", "totalCount", "canPrev",
 /**
  * A pager for `view`. Each number is a getter over one memo, so reading
  * `pager.pageIndex` in JSX follows it. The commands never change, so
- * destructuring them is fine; destructuring a number reads it once.
+ * destructuring them is fine; destructuring a number reads it once. With
+ * client `pagination()`, a page past the last one reads as the last page,
+ * which is what the rows show, and `prev` and `next` step from there.
  */
 export function createPagination(table: PaginationTable, view: Accessor<TableRowsView<unknown>>): PaginationControls {
   const api = table.pagination;
   // The table has pagination, whose state is `PaginationState`.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const state = createFeatureState(table, "pagination") as Accessor<PaginationState>;
-  const meta = derived(() => computePaginationMeta(state(), view().totalCount, api.sizes));
+  // Client `pagination()` cuts the page out of the rows itself, clamped to the last page.
+  const clamp = storeOf(table).def.resolvedFeatures.byName.get("pagination")?.def.rowStage !== undefined;
+  const meta = derived(() => computePaginationMeta(state(), view().totalCount, api.sizes, clamp));
+  const step = (by: 1 | -1) => {
+    const { pageCount } = untrack(meta);
+    api.setPage((index) => stepPage(index, pageCount, by, clamp));
+  };
   const controls = {
-    next: () => {
-      if (untrack(meta).canNext) api.setPage((index) => index + 1);
-    },
-    prev: () => {
-      if (untrack(meta).canPrev) api.setPage((index) => index - 1);
-    },
+    next: () => step(1),
+    prev: () => step(-1),
     setPage: api.setPage,
     setPageSize: api.setPageSize,
     setCursor: api.setCursor,
