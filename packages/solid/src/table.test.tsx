@@ -17,8 +17,14 @@ import {
   isSelected,
   remotePagination,
   remoteSorting,
+  selectable,
+  selection,
   sortDir,
   sorting,
+  type CellApi,
+  type HeaderApi,
+  type SelectionCellApi,
+  type SelectionHeaderApi,
 } from "./index.js";
 import { counted, get, mount, settle, texts } from "./test/dom.js";
 import { DataTable, makeDef, people, selectReads, type User } from "./test/fixture.js";
@@ -252,5 +258,48 @@ describe("disposal", () => {
     expect(live()).toBeGreaterThan(0);
     stop();
     expect(live()).toBe(0);
+  });
+});
+
+const PlainSelectCell = (props: { readonly cell: CellApi<unknown, User, SelectionCellApi> }) => (
+  <input
+    type="checkbox"
+    class="col-part-select"
+    checked={props.cell.selected}
+    onChange={() => props.cell.toggleSelected()}
+  />
+);
+
+const PlainSelectHeader = (props: { readonly header: HeaderApi<User, SelectionHeaderApi> }) => (
+  <input
+    type="checkbox"
+    class="col-part-all"
+    checked={props.header.checked}
+    onChange={() => props.header.toggle()}
+  />
+);
+
+describe("column parts without defineCell", () => {
+  it("provides selection APIs to Cell and Header when selectable() is declared on column.parts", async () => {
+    const def = defineTable<User>()({
+      getRowId: (user) => user.id,
+      columns: (col) => [
+        col.custom("select", { parts: [selectable()], cell: PlainSelectCell, header: PlainSelectHeader }),
+        col.key("name", { label: "Name" }),
+      ],
+      features: [selection()],
+    });
+    const table = createRoot(() => createTable(def));
+    const { host } = mount(() => <DataTable table={table} data={people} />);
+    const boxes = [...host.querySelectorAll<HTMLInputElement>("input.col-part-select")];
+    const allBox = get(host, "input.col-part-all", HTMLInputElement);
+    expect(boxes).toHaveLength(people.length);
+    expect(boxes[0]?.checked).toBe(false);
+    expect(allBox.checked).toBe(false);
+
+    allBox.click();
+    await settle();
+    expect(boxes.every((b) => b.checked)).toBe(true);
+    expect(allBox.checked).toBe(true);
   });
 });

@@ -56,6 +56,6 @@ members, as `defineCell(SelectCell, selectable())` gives `cell.selected` and
 arguments, so it can go straight into `onClick` or `onChange`.
 
 `createTable` takes its options, or an accessor of them, and passes changes
-to `omitColumns`, `meta` and controlled `bind` slices to the table. On the
+to `omitColumns`, `meta` and controlled feature bindings to the table. On the
 server every primitive reads the table's server snapshot and subscribes to
 nothing.

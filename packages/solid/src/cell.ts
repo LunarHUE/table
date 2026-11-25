@@ -1,10 +1,17 @@
 import {
+  attachParts,
+  findFeaturePart,
+  footerValues,
   hasFeature,
+  selectionScopeOf,
   type AnyFeaturePart,
+  type CellApi,
   type ColumnView,
+  type FooterApi,
+  type HeaderApi,
   type HeaderCell,
+  type NoPartApi,
   type Row,
-  type SelectableConfig,
   type SelectionApi,
   type Table,
 } from "@lunarhue/table-core";
@@ -17,69 +24,22 @@ import { createRowState, createTableMeta } from "./table.js";
 // Rendering: `<Cell>`, `<Header>` and `<Footer>` render the component a
 // column names for the slot, or its value or label when it names none. The
 // component gets one prop, an object of getters, so `props.cell.value` in its
-// JSX follows the value and nothing else. Parts attached with `defineCell`
-// add their getters and commands, and only cells whose component asks for a
-// part subscribe to its state.
+// JSX follows the value and nothing else. Parts on the column (`parts: [...]`)
+// or attached with `defineCell` add their getters and commands through the
+// shared helpers in `@lunarhue/table-core`.
 
-type Meta = Readonly<Record<string, unknown>>;
-
-/** What every slot's component gets about the table. */
-interface SlotApi {
-  /** The table, for its feature commands. */
-  readonly table: AnyTable;
-  /** The table's `meta`, following `createTable`'s options. */
-  readonly meta: Meta;
-}
-
-/**
- * The `cell` prop of a cell component. `TPartApi` is what the parts given to
- * `defineCell` add, such as `SelectionCellApi` from `selectable()`.
- */
-// `Record<never, never>` adds no members: a cell with no parts gets the base API.
-// oxlint-disable-next-line typescript/no-generated-empty-object-type
-export type CellApi<TValue, TRow = unknown, TPartApi = Record<never, never>> = SlotApi & {
-  /** What the column's `getValue` returns for the row. */
-  readonly value: TValue;
-  readonly row: Row<TRow>;
-  readonly column: ColumnView<TRow>;
-} & TPartApi;
-
-/**
- * The `header` prop of a header component. `column` is undefined over a
- * group. `TPartApi` is what the parts add, such as `SelectionHeaderApi`
- * from `selectable()`.
- */
-// oxlint-disable-next-line typescript/no-generated-empty-object-type
-export type HeaderApi<TRow = unknown, TPartApi = Record<never, never>> = SlotApi & {
-  readonly header: HeaderCell<TRow>;
-  readonly column: ColumnView<TRow> | undefined;
-} & TPartApi;
-
-/** The `footer` prop of a footer component: the column, and its values in the rows shown, for totals. */
-// oxlint-disable-next-line typescript/no-generated-empty-object-type
-export type FooterApi<TValue, TRow = unknown, TPartApi = Record<never, never>> = SlotApi & {
-  readonly column: ColumnView<TRow>;
-  readonly rows: readonly Row<TRow>[];
-  /** The column's value for each data row in `rows`. */
-  readonly values: readonly TValue[];
-} & TPartApi;
-
-const parts = new WeakMap<object, readonly AnyFeaturePart[]>();
+export type { CellApi, FooterApi, HeaderApi, NoPartApi };
 
 /**
  * Attaches feature parts to a cell, header or footer component, and returns
- * the component itself. `<Cell>` then adds what each part gives:
- * `defineCell(SelectCell, selectable())` gives the cell `selected` and
- * `toggleSelected`. The parts are kept beside the component, which is never
- * changed. A component that only shows its value needs no `defineCell`.
+ * the component itself. `<Cell>` and `<Header>` then add what each part
+ * gives: `defineCell(SelectCell, selectable())` gives the cell `selected`
+ * and `toggleSelected`. The parts are kept beside the component, which is
+ * never changed. A component that only shows its value needs no `defineCell`.
  */
 export function defineCell<C extends (props: never) => unknown>(Component: C, ...attached: readonly AnyFeaturePart[]): C {
-  parts.set(Component, Object.freeze([...attached]));
-  return Component;
+  return attachParts(Component, attached);
 }
-
-const partsOf = (component: unknown): readonly AnyFeaturePart[] =>
-  (typeof component === "function" ? parts.get(component) : undefined) ?? [];
 
 /** The slot component a column names, as Solid calls it. Columns type their slots `unknown`, since core knows no framework. */
 const asComponent = <P extends object>(value: unknown): Component<P> | undefined =>
@@ -127,7 +87,7 @@ export interface CellProps<TRow> {
 }
 
 /** The cell API for one component's parts. Getters read `props`, so it follows a new row or column. */
-function cellApi(props: CellProps<unknown>, attached: readonly AnyFeaturePart[]): CellApi<unknown> {
+function cellApi(props: CellProps<unknown>, hasSelection: boolean): CellApi<unknown> {
   const table: AnyTable = props.table;
   const meta = createTableMeta(table);
   const api = {};
@@ -138,8 +98,8 @@ function cellApi(props: CellProps<unknown>, attached: readonly AnyFeaturePart[])
     table: () => props.table,
     meta,
   });
-  const select = selectionOf(table);
-  if (select && attached.some((part) => part.feature === "selection")) {
+  const select = hasSelection ? selectionOf(table) : undefined;
+  if (select) {
     const selected = createRowState(table, () => props.row.id, "selection", isTrue);
     getters(api, { selected });
     Object.defineProperty(api, "toggleSelected", {
@@ -165,11 +125,12 @@ export function Cell<TRow>(props: CellProps<TRow>): SolidElement {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const own = props as unknown as CellProps<unknown>;
   const component = createMemo(() => own.column.column.cell);
-  // The API is made inside the slot, so it goes with the component that asked for its parts.
+  const columnParts = createMemo(() => own.column.column.parts);
+  // The API is made inside the slot, so it goes with the component and column parts.
   const Slot = dynamic(() => {
     const render = asComponent<{ readonly cell: CellApi<unknown> }>(component()) ?? ValueCell;
-    const attached = partsOf(render);
-    return () => createComponent(render, { cell: cellApi(own, attached) });
+    const hasSelection = findFeaturePart("selection", columnParts(), render) !== undefined;
+    return () => createComponent(render, { cell: cellApi(own, hasSelection) });
   });
   return createComponent(Slot, {});
 }
@@ -185,7 +146,7 @@ export interface HeaderProps<TRow> {
 const noRows: readonly Row<unknown>[] = Object.freeze([]);
 
 /** The header API for one component's parts. */
-function headerApi(props: HeaderProps<unknown>, attached: readonly AnyFeaturePart[]): HeaderApi {
+function headerApi(props: HeaderProps<unknown>, selectionPart: AnyFeaturePart | undefined): HeaderApi {
   const table: AnyTable = props.table;
   const api = {};
   getters(api, {
@@ -194,15 +155,11 @@ function headerApi(props: HeaderProps<unknown>, attached: readonly AnyFeaturePar
     table: () => props.table,
     meta: createTableMeta(table),
   });
-  const part = attached.find((item) => item.feature === "selection");
-  const select = selectionOf(table);
-  if (select && part) {
-    // `selectable()` makes the selection part, with this config.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    const config = part.config as SelectableConfig;
+  const select = selectionPart ? selectionOf(table) : undefined;
+  if (select && selectionPart) {
     // `selectionOf` found the selection API on the table.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    const all = createSelectAll(table as SelectionTable, () => props.rows ?? noRows, { scope: config.scope });
+    const all = createSelectAll(table as SelectionTable, () => props.rows ?? noRows, { scope: selectionScopeOf(selectionPart) });
     getters(api, { checked: () => all().checked, indeterminate: () => all().indeterminate });
     Object.defineProperty(api, "toggle", { enumerable: true, value: untrack(all).toggle });
   }
@@ -221,10 +178,11 @@ export function Header<TRow>(props: HeaderProps<TRow>): SolidElement {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const own = props as unknown as HeaderProps<unknown>;
   const component = createMemo(() => own.header.column?.column.header);
+  const columnParts = createMemo(() => own.header.column?.column.parts);
   const Slot = dynamic(() => {
     const render = asComponent<{ readonly header: HeaderApi }>(component()) ?? LabelHeader;
-    const attached = partsOf(render);
-    return () => createComponent(render, { header: headerApi(own, attached) });
+    const selectionPart = findFeaturePart("selection", columnParts(), render);
+    return () => createComponent(render, { header: headerApi(own, selectionPart) });
   });
   return createComponent(Slot, {});
 }
@@ -242,10 +200,7 @@ export function Footer<TRow>(props: FooterProps<TRow>): SolidElement {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const own = props as unknown as FooterProps<unknown>;
   const component = createMemo(() => own.column.column.footer);
-  const values: Accessor<readonly unknown[]> = createMemo(() => {
-    const getValue = own.column.column.getValue;
-    return own.rows.filter((row) => row.kind === "data").map((row) => getValue?.(row.original));
-  });
+  const values: Accessor<readonly unknown[]> = createMemo(() => footerValues(own.column, own.rows));
   const api = {};
   getters(api, {
     column: () => own.column,

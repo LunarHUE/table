@@ -156,6 +156,17 @@ export {
   type HeaderGroup,
 } from "./column-pipeline.js";
 export {
+  attachParts,
+  findFeaturePart,
+  footerValues,
+  partsOf,
+  selectionScopeOf,
+  type CellApi,
+  type FooterApi,
+  type HeaderApi,
+  type NoPartApi,
+} from "./slots.js";
+export {
   createTableStore,
   stableStringify,
   type TableStore,

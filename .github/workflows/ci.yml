@@ -39,8 +39,10 @@ jobs:
         run: bun run test
       - if: steps.setup.outputs.docs-only != 'true'
         run: bun run build
-      # check:package and size read the build output.
+      # check:package, check:consumer-types and size read the build output.
       - if: steps.setup.outputs.docs-only != 'true'
         run: bun run check:package
+      - if: steps.setup.outputs.docs-only != 'true'
+        run: bun run check:consumer-types
       - if: steps.setup.outputs.docs-only != 'true'
         run: bun run size

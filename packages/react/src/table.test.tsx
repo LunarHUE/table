@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
+  Footer,
   createTableStore,
   defineTable,
   remotePagination,
@@ -19,6 +20,7 @@ import {
   useVisibleColumns,
   visibility,
   selection,
+  type FooterApi,
   type StateOf,
   type TableStore,
 } from "./index.js";
@@ -438,5 +440,64 @@ describe("stores made outside React", () => {
     }
     render(<Probe />);
     expect(screen.getByText("true")).toBeTruthy();
+  });
+});
+
+interface Invoice {
+  readonly id: string;
+  readonly label: string;
+  readonly amount: number;
+}
+
+function TotalFooter({ footer }: { readonly footer: FooterApi<number, Invoice> }) {
+  const sum = footer.values.reduce((total, value) => total + value, 0);
+  const currency = typeof footer.meta.currency === "string" ? footer.meta.currency : "";
+  return (
+    <span data-testid="total">
+      {currency}
+      {sum} ({footer.rows.length})
+    </span>
+  );
+}
+
+const invoiceTable = defineTable<Invoice>()({
+  getRowId: (item) => item.id,
+  columns: (col) => [
+    col.key("label", { label: "Item" }),
+    col.key("amount", { label: "Amount", footer: TotalFooter }),
+  ],
+});
+
+function InvoiceFooters({ items }: { readonly items: readonly Invoice[] }) {
+  const table = useTable(invoiceTable, { meta: { currency: "$" } });
+  const view = useTableRows(table, items);
+  const columns = useVisibleColumns(table);
+  return (
+    <table>
+      <tfoot>
+        <tr>
+          {columns.map((column) => (
+            <td key={column.id}>
+              <Footer table={table} column={column} rows={view.rows} />
+            </td>
+          ))}
+        </tr>
+      </tfoot>
+    </table>
+  );
+}
+
+describe("Footer", () => {
+  it("renders the column footer component with values, rows and meta, and null when absent", () => {
+    render(
+      <InvoiceFooters
+        items={[
+          { id: "1", label: "A", amount: 15 },
+          { id: "2", label: "B", amount: 25 },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("total").textContent).toBe("$40 (2)");
+    expect(screen.getAllByRole("cell")[0]?.textContent).toBe("");
   });
 });

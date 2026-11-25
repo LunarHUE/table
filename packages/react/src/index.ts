@@ -1,6 +1,6 @@
 export * from "./server.js";
 export { useTableBinding, type TableBindingResult, type UseTableBindingOptions } from "./binding.js";
-export { Cell, Header, type CellProps, type HeaderProps } from "./cell.js";
+export { Cell, Footer, Header, type CellProps, type FooterProps, type HeaderProps } from "./cell.js";
 export {
   useAllColumns,
   useCellState,
