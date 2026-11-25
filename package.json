@@ -1,0 +1,72 @@
+{
+  "name": "@lunarhue/table-monorepo",
+  "private": true,
+  "packageManager": "bun@1.4.2",
+  "type": "module",
+  "workspaces": {
+    "packages": [
+      "packages/*",
+      "scripts"
+    ],
+    "catalog": {
+      "@arethetypeswrong/cli": "0.18.5",
+      "@babel/core": "8.1.2",
+      "@changesets/changelog-github": "1.0.1",
+      "@changesets/cli": "3.0.3",
+      "@size-limit/preset-small-lib": "14.3.0",
+      "@solidjs/vite-plugin": "3.0.1",
+      "@solidjs/web": "2.0.0",
+      "@testing-library/dom": "10.4.2",
+      "@testing-library/react": "16.3.3",
+      "@testing-library/user-event": "14.6.12",
+      "@types/node": "24.19.2",
+      "@types/react": "19.3.0",
+      "@types/react-dom": "19.3.0",
+      "babel-plugin-react-compiler": "1.0.0",
+      "eslint-plugin-react-hooks": "7.1.1",
+      "jsdom": "31.0.1",
+      "nuqs": "2.10.3",
+      "oxlint": "1.94.0",
+      "oxlint-tsgolint": "7.0.2007",
+      "pkg-pr-new": "0.0.94",
+      "publint": "0.3.25",
+      "react": "19.3.1",
+      "react-dom": "19.3.1",
+      "size-limit": "14.3.0",
+      "solid-js": "2.0.0",
+      "tsdown": "0.23.7",
+      "typescript": "7.0.2",
+      "vite": "8.3.8",
+      "vitest": "5.1.0",
+      "zustand": "5.1.0"
+    }
+  },
+  "scripts": {
+    "build": "bun run --filter './packages/*' build",
+    "typecheck": "tsc -p tsconfig.json && bun run --filter './packages/*' --filter './scripts' typecheck",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "check:package": "bun run --filter './packages/*' check:package",
+    "size": "bun run --filter './packages/*' size",
+    "changeset": "changeset",
+    "version": "changeset version && bun install --lockfile-only",
+    "release:pack": "bun run build && bun scripts/pack.ts",
+    "release": "rm -rf .release && bun run release:pack --out-dir .release && changeset publish --from-pack-dir .release"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "catalog:",
+    "@changesets/changelog-github": "catalog:",
+    "@changesets/cli": "catalog:",
+    "@size-limit/preset-small-lib": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "pkg-pr-new": "catalog:",
+    "publint": "catalog:",
+    "size-limit": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
