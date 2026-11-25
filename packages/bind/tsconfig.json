@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2020", "dom"],
+    "noEmit": true,
+    "customConditions": ["@lunarhue/source"]
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    # "/" covers the workflows. The composite actions need their own entry.
+    directories: ["/", "/.github/actions/*"]
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Dependabot reads bun.lock and the root catalog.
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dependencies:
+        patterns: ["*"]
+    ignore:
+      # The Node types follow the Node in .node-version, which moves by hand.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]

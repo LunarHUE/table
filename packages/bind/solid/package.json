@@ -1,0 +1,5 @@
+{
+  "main": "../dist/cjs/solid.js",
+  "module": "../dist/esm/solid.js",
+  "types": "../dist/cjs/solid.d.ts"
+}

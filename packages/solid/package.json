@@ -1,0 +1,66 @@
+{
+  "name": "@lunarhue/table-solid",
+  "license": "MIT",
+  "version": "0.1.0",
+  "description": "Headless tables for Solid.",
+  "keywords": ["table", "data-grid", "headless", "solid", "solid-js", "typescript"],
+  "homepage": "https://github.com/LunarHUE/table#readme",
+  "bugs": "https://github.com/LunarHUE/table/issues",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LunarHUE/table.git",
+    "directory": "packages/solid"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "@lunarhue/source": "./src/index.ts",
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@lunarhue/table-core": "workspace:^"
+  },
+  "peerDependencies": {
+    "solid-js": "^2.0.0",
+    "@solidjs/web": "^2.0.0"
+  },
+  "devDependencies": {
+    "@solidjs/vite-plugin": "catalog:",
+    "@solidjs/web": "catalog:",
+    "jsdom": "catalog:",
+    "solid-js": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json && tsdown -c tsdown.types.config.ts && rm -rf dist/types",
+    "typecheck": "tsc -p tsconfig.json",
+    "check:package": "publint --strict --pack npm && attw --pack .",
+    "size": "size-limit"
+  },
+  "size-limit": [
+    {
+      "name": ".",
+      "path": "dist/esm/index.js",
+      "import": "*",
+      "limit": "1 kB"
+    }
+  ]
+}

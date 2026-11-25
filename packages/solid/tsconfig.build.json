@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2020", "dom"],
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "rootDir": "src",
+    "outDir": "dist/types",
+    "declaration": true,
+    "emitDeclarationOnly": true
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.test-d.ts", "src/**/*.test-d.tsx", "src/**/*.bench.ts", "src/bench"]
+}

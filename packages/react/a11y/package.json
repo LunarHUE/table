@@ -1,0 +1,5 @@
+{
+  "main": "../dist/cjs/a11y.js",
+  "module": "../dist/esm/a11y.js",
+  "types": "../dist/cjs/a11y.d.ts"
+}

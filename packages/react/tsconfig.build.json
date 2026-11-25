@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2020", "dom"],
+    "jsx": "react-jsx",
+    "rootDir": "src",
+    "outDir": "dist/types",
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    // The package's `imports` send `#lunarhue/react` to the built files, which
+    // don't exist yet when tsc runs, so the declarations read the source.
+    "paths": { "#lunarhue/react": ["./src/react18.ts"] }
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test", "src/**/*.test-d.ts", "src/**/*.test-d.tsx", "src/**/*.bench.ts", "src/bench"]
+}

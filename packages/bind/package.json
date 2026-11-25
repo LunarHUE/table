@@ -1,0 +1,115 @@
+{
+  "name": "@lunarhue/table-bind",
+  "license": "MIT",
+  "version": "0.1.0",
+  "description": "Bind table state to the URL with nuqs, a Zustand store or a Solid signal.",
+  "keywords": ["table", "data-grid", "nuqs", "zustand", "solid", "state"],
+  "homepage": "https://github.com/LunarHUE/table#readme",
+  "bugs": "https://github.com/LunarHUE/table/issues",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LunarHUE/table.git",
+    "directory": "packages/bind"
+  },
+  "files": [
+    "dist",
+    "nuqs",
+    "zustand",
+    "solid"
+  ],
+  "exports": {
+    "./nuqs": {
+      "@lunarhue/source": "./src/nuqs.ts",
+      "import": {
+        "types": "./dist/esm/nuqs.d.ts",
+        "default": "./dist/esm/nuqs.js"
+      },
+      "require": {
+        "types": "./dist/cjs/nuqs.d.ts",
+        "default": "./dist/cjs/nuqs.js"
+      }
+    },
+    "./zustand": {
+      "@lunarhue/source": "./src/zustand.ts",
+      "import": {
+        "types": "./dist/esm/zustand.d.ts",
+        "default": "./dist/esm/zustand.js"
+      },
+      "require": {
+        "types": "./dist/cjs/zustand.d.ts",
+        "default": "./dist/cjs/zustand.js"
+      }
+    },
+    "./solid": {
+      "@lunarhue/source": "./src/solid.ts",
+      "import": {
+        "types": "./dist/esm/solid.d.ts",
+        "default": "./dist/esm/solid.js"
+      },
+      "require": {
+        "types": "./dist/cjs/solid.d.ts",
+        "default": "./dist/cjs/solid.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@lunarhue/table-core": "workspace:^",
+    "nuqs": "^2.0.0",
+    "react": ">=16.8",
+    "solid-js": "^2.0.0",
+    "zustand": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "nuqs": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    },
+    "zustand": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@lunarhue/table-core": "workspace:^",
+    "nuqs": "catalog:",
+    "react": "catalog:",
+    "solid-js": "catalog:",
+    "zustand": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json && tsdown -c tsdown.types.config.ts && rm -rf dist/types",
+    "typecheck": "tsc -p tsconfig.json",
+    "check:package": "publint --strict --pack npm && attw --pack .",
+    "size": "size-limit"
+  },
+  "size-limit": [
+    {
+      "name": "./nuqs",
+      "path": "dist/esm/nuqs.js",
+      "import": "*",
+      "limit": "500 B"
+    },
+    {
+      "name": "./zustand",
+      "path": "dist/esm/zustand.js",
+      "import": "*",
+      "limit": "500 B"
+    },
+    {
+      "name": "./solid",
+      "path": "dist/esm/solid.js",
+      "import": "*",
+      "limit": "500 B"
+    }
+  ]
+}

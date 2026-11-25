@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@4.0.1/schema.json",
+  "baseBranch": "main",
+  "access": "public",
+  "ignore": [],
+  "fixed": [
+    [
+      "@lunarhue/table-core",
+      "@lunarhue/table-react",
+      "@lunarhue/table-solid",
+      "@lunarhue/table-bind"
+    ]
+  ],
+  "linked": [],
+  "privatePackages": {
+    "version": false,
+    "tag": false
+  },
+  "format": "auto",
+  "updateInternalDependencies": "patch",
+  "commit": false,
+  "changelog": ["@changesets/changelog-github", { "repo": "LunarHUE/table" }]
+}

@@ -1,0 +1,10 @@
+{
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "*.ts": "${capture}.test.ts, ${capture}.test-d.ts",
+    "*.tsx": "${capture}.test.tsx",
+    "package.json": "bun.lock, tsconfig.json, tsconfig.*.json, tsdown.config.ts, tsdown.base.ts, vitest.config.ts, vitest.base.ts, oxlint.config.ts",
+    "flake.nix": "flake.lock"
+  }
+}
