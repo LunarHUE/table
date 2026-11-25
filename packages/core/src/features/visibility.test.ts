@@ -311,6 +311,181 @@ describe("columnLayout", () => {
   });
 });
 
+describe("columnLayout.moveColumn", () => {
+  const wide = ["a", "b", "c", "d", "e", "f"].map((id) => ({ id, getValue: (row: User) => row.name }));
+  interface WideLayout {
+    readonly hidden: readonly string[];
+    readonly order: readonly string[];
+    readonly pinned: { readonly start: readonly string[]; readonly end: readonly string[] };
+    readonly sizes: Readonly<Record<string, number>>;
+  }
+  const blank: WideLayout = { hidden: [], order: [], pinned: { start: [], end: [] }, sizes: {} };
+  const makeWide = (initial: Partial<WideLayout> = {}, omitColumns?: readonly string[]) =>
+    createTableStore(
+      defineTable<User>()({
+        getRowId: (row) => row.id,
+        columns: wide,
+        features: [columnLayout()],
+        initialState: { columnLayout: { ...blank, ...initial } },
+      }),
+      omitColumns ? { omitColumns } : {},
+    );
+  const ids = (table: ReturnType<typeof makeWide>) => table.getColumns().visibleColumns.map((column) => column.id);
+  const layout = (table: ReturnType<typeof makeWide>) => table.getFeatureState("columnLayout");
+
+  it("lands a center column at the shown index when columns are pinned to the start", () => {
+    const table = makeWide({ pinned: { start: ["e"], end: [] } });
+    expect(ids(table)).toEqual(["e", "a", "b", "c", "d", "f"]);
+    table.columnLayout.moveColumn("c", 1);
+    expect(ids(table)).toEqual(["e", "c", "a", "b", "d", "f"]);
+    table.columnLayout.moveColumn("c", 4);
+    expect(ids(table)).toEqual(["e", "a", "b", "d", "c", "f"]);
+  });
+
+  it("lands a center column at the shown index when both sides are pinned", () => {
+    const table = makeWide({ pinned: { start: ["e"], end: ["b"] } });
+    expect(ids(table)).toEqual(["e", "a", "c", "d", "f", "b"]);
+    table.columnLayout.moveColumn("f", 1);
+    expect(ids(table)).toEqual(["e", "f", "a", "c", "d", "b"]);
+    table.columnLayout.moveColumn("f", 3);
+    expect(ids(table)).toEqual(["e", "a", "c", "f", "d", "b"]);
+    expect(layout(table).pinned).toEqual({ start: ["e"], end: ["b"] });
+  });
+
+  it("clamps a center column to the center when the index is in a pinned zone", () => {
+    const table = makeWide({ pinned: { start: ["e"], end: ["b"] } });
+    table.columnLayout.moveColumn("c", 0);
+    expect(ids(table)).toEqual(["e", "c", "a", "d", "f", "b"]);
+    table.columnLayout.moveColumn("c", 5);
+    expect(ids(table)).toEqual(["e", "a", "d", "f", "c", "b"]);
+    table.columnLayout.moveColumn("c", 99);
+    table.columnLayout.moveColumn("a", -3);
+    expect(ids(table)).toEqual(["e", "a", "d", "f", "c", "b"]);
+    expect(layout(table).pinned).toEqual({ start: ["e"], end: ["b"] });
+  });
+
+  it("keeps pinned columns' slots in order, so unpinning puts them back", () => {
+    const table = makeWide({ pinned: { start: ["e"], end: ["b"] } });
+    table.columnLayout.moveColumn("c", 1);
+    expect(layout(table).order).toEqual(["c", "b", "a", "d", "e", "f"]);
+    table.columnLayout.pin("b", "center");
+    table.columnLayout.pin("e", "center");
+    expect(ids(table)).toEqual(["c", "b", "a", "d", "e", "f"]);
+  });
+
+  it("reorders the start zone", () => {
+    const table = makeWide({ pinned: { start: ["a", "b", "c"], end: [] } });
+    table.columnLayout.moveColumn("c", 0);
+    expect(layout(table).pinned.start).toEqual(["c", "a", "b"]);
+    table.columnLayout.moveColumn("c", 2);
+    expect(layout(table).pinned.start).toEqual(["a", "b", "c"]);
+    table.columnLayout.moveColumn("a", 4);
+    expect(layout(table).pinned.start).toEqual(["b", "c", "a"]);
+    expect(ids(table)).toEqual(["b", "c", "a", "d", "e", "f"]);
+    expect(layout(table).order).toEqual([]);
+  });
+
+  it("reorders the end zone, counting from the shown columns before it", () => {
+    const table = makeWide({ pinned: { start: [], end: ["d", "e", "f"] } });
+    table.columnLayout.moveColumn("f", 3);
+    expect(layout(table).pinned.end).toEqual(["f", "d", "e"]);
+    expect(ids(table)).toEqual(["a", "b", "c", "f", "d", "e"]);
+    table.columnLayout.moveColumn("f", 1);
+    expect(layout(table).pinned.end).toEqual(["f", "d", "e"]);
+    table.columnLayout.moveColumn("d", 5);
+    expect(ids(table)).toEqual(["a", "b", "c", "f", "e", "d"]);
+  });
+
+  it("leaves the layout alone when the column is already there or its zone has no room", () => {
+    const table = makeWide({ pinned: { start: ["a"], end: ["f"] } });
+    const before = layout(table);
+    table.columnLayout.moveColumn("a", 3);
+    table.columnLayout.moveColumn("f", 0);
+    table.columnLayout.moveColumn("b", 1);
+    table.columnLayout.moveColumn("b", 0);
+    table.columnLayout.moveColumn("e", 4);
+    table.columnLayout.moveColumn("e", 5);
+    table.columnLayout.moveColumn("gone", 2);
+    expect(layout(table)).toBe(before);
+  });
+
+  it("skips hidden columns when counting, and keeps their order", () => {
+    const table = makeWide({ hidden: ["b"] });
+    expect(ids(table)).toEqual(["a", "c", "d", "e", "f"]);
+    table.columnLayout.moveColumn("a", 1);
+    expect(ids(table)).toEqual(["c", "a", "d", "e", "f"]);
+    expect(layout(table).order).toEqual(["b", "c", "a", "d", "e", "f"]);
+    table.columnLayout.moveColumn("f", 0);
+    expect(ids(table)).toEqual(["f", "c", "a", "d", "e"]);
+  });
+
+  it("doesn't touch the state when a hidden neighbour is all that would move", () => {
+    const table = makeWide({ hidden: ["a"] });
+    const before = layout(table);
+    table.columnLayout.moveColumn("b", 0);
+    expect(layout(table)).toBe(before);
+  });
+
+  it("counts only the shown columns of the zones before", () => {
+    const table = makeWide({ hidden: ["a"], pinned: { start: ["a", "b"], end: [] } });
+    expect(ids(table)).toEqual(["b", "c", "d", "e", "f"]);
+    table.columnLayout.moveColumn("e", 1);
+    expect(ids(table)).toEqual(["b", "e", "c", "d", "f"]);
+  });
+
+  it("moves a hidden column so it shows at the index once shown again", () => {
+    const table = makeWide({ hidden: ["b"], pinned: { start: ["e"], end: [] } });
+    expect(ids(table)).toEqual(["e", "a", "c", "d", "f"]);
+    table.columnLayout.moveColumn("b", 3);
+    table.columnLayout.setVisible("b", true);
+    expect(ids(table)).toEqual(["e", "a", "c", "b", "d", "f"]);
+  });
+
+  it("does nothing to a hidden column in a zone that shows no columns", () => {
+    const table = makeWide({ hidden: ["f"], pinned: { start: [], end: ["f"] } });
+    const before = layout(table);
+    table.columnLayout.moveColumn("f", 0);
+    expect(layout(table)).toBe(before);
+  });
+
+  it("ignores stale and duplicate ids in the order", () => {
+    const table = makeWide();
+    table.columnLayout.setOrder(["gone", "f", "f"]);
+    expect(ids(table)).toEqual(["f", "a", "b", "c", "d", "e"]);
+    table.columnLayout.moveColumn("a", 0);
+    expect(ids(table)).toEqual(["a", "f", "b", "c", "d", "e"]);
+    expect(layout(table).order).toEqual(["a", "f", "b", "c", "d", "e"]);
+  });
+
+  it("ignores columns the app omits", () => {
+    const table = makeWide({ pinned: { start: ["b"], end: [] } }, ["a"]);
+    expect(ids(table)).toEqual(["b", "c", "d", "e", "f"]);
+    table.columnLayout.moveColumn("f", 1);
+    expect(ids(table)).toEqual(["b", "f", "c", "d", "e"]);
+  });
+
+  it("treats a fractional or non-number index as the nearest whole index toward zero", () => {
+    const table = makeWide();
+    table.columnLayout.moveColumn("c", 1.9);
+    expect(ids(table)).toEqual(["a", "c", "b", "d", "e", "f"]);
+    table.columnLayout.moveColumn("d", Number.NaN);
+    expect(ids(table)).toEqual(["d", "a", "c", "b", "e", "f"]);
+  });
+
+  it("composes two moves queued on a controlled slice", () => {
+    let state: WideLayout = { ...blank, pinned: { start: ["e"], end: [] } };
+    const queued: ((prev: WideLayout) => WideLayout)[] = [];
+    const table = createTableStore(
+      defineTable<User>()({ getRowId: (row) => row.id, columns: wide, features: [columnLayout()] }),
+      { bind: { columnLayout: { kind: "controlled", state, onStateChange: (updater) => queued.push(updater) } } },
+    );
+    table.columnLayout.moveColumn("f", 1);
+    table.columnLayout.moveColumn("a", 5);
+    for (const fn of queued) state = fn(state);
+    expect(state.order).toEqual(["f", "b", "c", "d", "e", "a"]);
+  });
+});
+
 describe("toggles on a controlled slice", () => {
   it("decide from the previous state, so two toggles in one handler cancel out", () => {
     type Shown = { readonly hidden: readonly Id[] };
