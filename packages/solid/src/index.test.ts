@@ -1,7 +1,9 @@
 import { expect, it } from "vitest";
-import { coreName, solidName } from "./index.js";
+import * as solid from "./index.js";
 
-it("re-exports core", () => {
-  expect(coreName).toBe("@lunarhue/table-core");
-  expect(solidName).toBe("@lunarhue/table-solid");
+it("re-exports core beside its own primitives", () => {
+  expect(solid.coreName).toBe("@lunarhue/table-core");
+  expect(typeof solid.defineTable).toBe("function");
+  expect(typeof solid.createTable).toBe("function");
+  expect(typeof solid.Cell).toBe("function");
 });
