@@ -211,3 +211,17 @@ export {
   type SelectionSummary,
   type SelectionTarget,
 } from "./features/selection.js";
+export {
+  columnLayout,
+  columnSizeVars,
+  columnVisible,
+  isColumnVisible,
+  visibility,
+  type ColumnLayoutApi,
+  type ColumnLayoutFeature,
+  type ColumnLayoutState,
+  type ColumnPinnedState,
+  type VisibilityApi,
+  type VisibilityFeature,
+  type VisibilityState,
+} from "./features/visibility.js";
