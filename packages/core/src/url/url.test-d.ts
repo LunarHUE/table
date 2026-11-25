@@ -30,7 +30,7 @@ interface Filters {
 
 const usersTable = defineTable<User>()({
   getRowId: (row) => row.id,
-  columns: [{ id: "name", sortable: true }, { id: "email", sortable: false }],
+  columns: [{ id: "name", sortable: true }, { id: "email" }],
   features: [remoteSorting(), remotePagination(), remoteFiltering<Filters>()],
 });
 

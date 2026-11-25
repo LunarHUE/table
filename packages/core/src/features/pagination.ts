@@ -116,7 +116,7 @@ const windowStage: RowStage<PaginationState, Options> = {
  * the table has. It adds nothing to the server request. A write that changes
  * the matching rows, such as a new filter, goes back to the first page.
  */
-export const pagination = defineFeature({ name: "pagination", state: stateSeam, api, rowStage: windowStage });
+export const pagination = /* @__PURE__ */ defineFeature({ name: "pagination", state: stateSeam, api, rowStage: windowStage });
 
 /**
  * Server pagination: puts `{ pageIndex, pageSize }`, and `cursor` when the
@@ -124,7 +124,7 @@ export const pagination = defineFeature({ name: "pagination", state: stateSeam, 
  * sent them. A write that changes the matching rows goes back to the first
  * page, and to a null cursor.
  */
-export const remotePagination = defineFeature({
+export const remotePagination = /* @__PURE__ */ defineFeature({
   name: "pagination",
   state: stateSeam,
   api,

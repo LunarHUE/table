@@ -296,4 +296,29 @@ describe("createFilterDraft", () => {
     draft.set("search", "x");
     expect(listener).not.toHaveBeenCalled();
   });
+
+  it("composes consecutive edits on a controlled filtering slice without losing updates", () => {
+    let controlled: UserFilters = { search: "" };
+    const queued: ((prev: UserFilters) => UserFilters)[] = [];
+    const def = defineTable<User>()({
+      getRowId: (u) => u.id,
+      columns: (col) => [col.key("name")],
+      features: [remoteFiltering<UserFilters>()],
+      initialState: { filtering: { search: "" } },
+    });
+    const store = createTableStore(def, {
+      bind: {
+        filtering: {
+          kind: "controlled",
+          state: controlled,
+          onStateChange: (updater) => queued.push(updater),
+        },
+      },
+    });
+    store.filtering.set("search", "alice");
+    store.filtering.set("role", "admin");
+    store.filtering.toggle("tags", "vip");
+    for (const fn of queued) controlled = fn(controlled);
+    expect(controlled).toEqual({ search: "alice", role: "admin", tags: ["vip"] });
+  });
 });
