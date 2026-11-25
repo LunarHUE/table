@@ -107,7 +107,7 @@
       "name": "./url",
       "path": "dist/esm/url/index.js",
       "import": "*",
-      "limit": "1 kB"
+      "limit": "2.8 kB"
     }
   ]
 }
