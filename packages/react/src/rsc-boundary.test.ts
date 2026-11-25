@@ -1,9 +1,9 @@
-import { defineTableUrl, enumParam, pageCodec, parseTableUrl, sortCodec, stringParam } from "@lunarhue/table-core/url";
 import { describe, expect, it } from "vitest";
 import * as server from "./server.js";
 import {
   defineCell,
   defineColumn,
+  defineStateAdapter,
   defineTable,
   remoteFiltering,
   remotePagination,
@@ -149,12 +149,31 @@ describe("definitions in a server component", () => {
       features: [remoteSorting(), remoteFiltering<Filters>(), remotePagination({ sizes: [10, 25] }), selection()],
     });
 
-    const membersUrl = defineTableUrl(membersTable, {
-      sorting: sortCodec(),
-      pagination: pageCodec(),
-      filtering: { search: stringParam({ trim: true }), role: enumParam(["admin", "member"]) },
+    const membersUrl = defineStateAdapter({
+      features: ["sorting", "pagination", "filtering"] as const,
+      parse(raw: Readonly<Record<string, string | undefined>>) {
+        const sort = raw.sort ?? "";
+        const page = Number(raw.page ?? "1");
+        const role = raw.role;
+        return {
+          sorting: sort ? [{ id: sort.replace(/^-/, ""), desc: sort.startsWith("-") }] : [],
+          pagination: { pageIndex: Number.isFinite(page) && page >= 1 ? Math.trunc(page) - 1 : 0 },
+          filtering: {
+            ...(raw.search ? { search: raw.search.trim() } : {}),
+            ...(role === "admin" || role === "member" ? { role } : {}),
+          },
+        };
+      },
+      serialize(state) {
+        const out = new URLSearchParams();
+        if (state.sorting?.[0]) out.set("sort", `${state.sorting[0].desc ? "-" : ""}${state.sorting[0].id}`);
+        if (state.pagination && state.pagination.pageIndex > 0) out.set("page", String(state.pagination.pageIndex + 1));
+        if (typeof state.filtering?.search === "string" && state.filtering.search) out.set("search", state.filtering.search);
+        if (typeof state.filtering?.role === "string" && state.filtering.role) out.set("role", state.filtering.role);
+        return out;
+      },
     });
-    const parsed = parseTableUrl(membersUrl, "?sort=-name&page=2&search=%20ali%20&role=admin");
+    const parsed = membersUrl.resolve(membersTable, { sort: "-name", page: "2", search: " ali ", role: "admin" });
 
     for (const ref of Object.values(refs)) expect(ref.fired).toEqual([]);
     expect(SelectCell).toBe(select);
@@ -164,6 +183,7 @@ describe("definitions in a server component", () => {
       sorting: [{ id: "name", desc: true }],
       pagination: { pageIndex: 1, pageSize: 10 },
       filtering: { search: "ali", role: "admin" },
+      selection: { mode: "ids", ids: [] },
     });
     expect(parsed.request).toEqual({
       sorting: [{ id: "name", desc: true }],
@@ -171,11 +191,10 @@ describe("definitions in a server component", () => {
       pagination: { pageIndex: 1, pageSize: 10 },
     });
     expect(typeof parsed.requestKey).toBe("string");
-    const dehydrated = parsed.dehydrate();
-    expect(dehydrated).toEqual({ request: parsed.request, requestKey: parsed.requestKey });
+    const dehydrated = { request: parsed.request, requestKey: parsed.requestKey };
     // What goes over the wire to the client must survive serialization.
     expect(JSON.parse(JSON.stringify(dehydrated))).toEqual(dehydrated);
-    expect(parsed.serialize().toString()).toBe("sort=-name&page=2&search=ali&role=admin");
+    expect(membersUrl.serialize(parsed.state, {}).toString()).toBe("sort=-name&page=2&search=ali&role=admin");
   });
 });
 
