@@ -63,6 +63,9 @@ const bump = (count: number): number => count + 1;
  * re-renders it whenever the snapshot changes.
  */
 function useStoreOnClient<S>(subscribe: (onChange: () => void) => () => void, getSnapshot: () => S): S {
+  // The React Compiler would cache `getSnapshot()` for as long as
+  // `getSnapshot` is the same function, and never read the store again.
+  "use no memo";
   const value = getSnapshot();
   const [committed] = useState(() => new Committed(value, getSnapshot));
   const [, rerender] = useReducer(bump, 0);
