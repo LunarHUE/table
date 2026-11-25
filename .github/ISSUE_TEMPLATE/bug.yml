@@ -1,0 +1,39 @@
+name: Bug
+description: Something does the wrong thing
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you did, what you expected and what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: The smallest table that shows it. A failing test or a link to a repo is best.
+      render: tsx
+    validations:
+      required: true
+  - type: dropdown
+    id: adapter
+    attributes:
+      label: Adapter
+      multiple: true
+      options:
+        - React
+        - Solid
+        - Bind (nuqs, Zustand, Solid signals)
+        - Core only
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: The table packages, the framework and the browser if it matters.
+      placeholder: table-react 0.1.0, react 19.3, Firefox 145
+    validations:
+      required: true

@@ -1,0 +1,42 @@
+name: Preview
+
+# Builds every published package for each PR and push to main and uploads them to pkg.pr.new,
+# which comments install links on the PR. Nothing goes to npm.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    # pkg.pr.new serves every upload at a public URL, so this stays off while the repo is
+    # private. The repository check keeps forks' own copies of the workflow quiet. The
+    # Version Packages pull request gets no preview, since nobody installs a version bump.
+    if: >-
+      github.event.repository.private == false && github.repository == 'LunarHUE/table'
+      && github.head_ref != 'changeset-release/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          # The packageManager field pins Bun.
+          bun-version-file: package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      # --bun packs with `bun pm pack`, which resolves `catalog:` versions; npm pack would not.
+      # Private packages under packages/ are skipped.
+      - run: bun run pkg-pr-new publish --bun --commentWithSha './packages/*'

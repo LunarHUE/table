@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a pull request cancels its run in progress. Every other run
+# gets a group of its own, so runs on main are never cancelled or dropped.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # A branch rule can require checks by name, so it always runs and skips its
+  # steps on a docs-only change instead.
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The docs-only check needs the merge base with the base branch.
+          fetch-depth: 0
+          persist-credentials: false
+      - id: setup
+        uses: ./.github/actions/setup
+      - if: steps.setup.outputs.docs-only == 'true'
+        run: echo "Only docs changed, so there is nothing to check."
+      - if: steps.setup.outputs.docs-only != 'true'
+        run: bun run typecheck
+      - if: steps.setup.outputs.docs-only != 'true'
+        run: bun run lint
+      - if: steps.setup.outputs.docs-only != 'true'
+        run: bun run test
+      - if: steps.setup.outputs.docs-only != 'true'
+        run: bun run build
+      # check:package and size read the build output.
+      - if: steps.setup.outputs.docs-only != 'true'
+        run: bun run check:package
+      - if: steps.setup.outputs.docs-only != 'true'
+        run: bun run size
