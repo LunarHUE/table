@@ -49,7 +49,18 @@ export interface ColumnLayoutApi {
   showAll(this: void): void;
   /** Replaces the order list. Columns left out follow the listed ones. */
   setOrder(this: void, order: readonly ColumnId[]): void;
-  /** Moves a column to `toIndex` among all the table's columns, hidden ones included. */
+  /**
+   * Moves a column so it shows at `toIndex` in `visibleColumns`, the shown
+   * columns from the start zone through the end zone. This is the `order` of
+   * the column a drop landed on.
+   *
+   * A column stays in its zone: a `toIndex` outside the zone clamps to the
+   * zone's first or last slot. To move a column into another zone, `pin` it
+   * there first, then move it. Hidden columns don't count toward `toIndex`
+   * and keep their order. A hidden column moves as if it were shown, so it
+   * shows at `toIndex` once shown again. If its zone shows no columns,
+   * nothing changes.
+   */
   moveColumn(this: void, id: ColumnId, toIndex: number): void;
   /** Pins a column to the start or the end, or unpins it with `"center"`. */
   pin(this: void, id: ColumnId, zone: ColumnZone): void;
@@ -211,6 +222,64 @@ const inOrder = <C extends ColumnInfo>(columns: readonly C[], order: readonly st
   return [...listed, ...columns.filter((column) => !placed.has(column))];
 };
 
+/**
+ * The ids in each zone, hidden ones included, in the order `layoutColumns`
+ * shows them. Skips ids the table doesn't have, so a write made before
+ * `normalize` runs still lines up with the shown columns.
+ */
+const zoneIds = (columns: readonly ColumnInfo[], state: ColumnLayoutState): Readonly<Record<ColumnZone, readonly ColumnId[]>> => {
+  const known = columnIds(columns);
+  const start = keepKnown(state.pinned.start, known);
+  const end = keepKnown(state.pinned.end, known, new Set(start));
+  const pinned = new Set([...start, ...end]);
+  const center = inOrder(columns, keepKnown(state.order, known))
+    .map((column) => column.id)
+    .filter((id) => !pinned.has(id));
+  return { start, center, end };
+};
+
+/**
+ * The layout with `id` moved to `toIndex` among the shown columns, kept in
+ * its zone. Returns `state` itself when the column is unknown or the move
+ * changes nothing.
+ */
+const moveInLayout = (
+  columns: readonly ColumnInfo[],
+  state: ColumnLayoutState,
+  id: ColumnId,
+  toIndex: number,
+): ColumnLayoutState => {
+  const zones = zoneIds(columns, state);
+  const zone = (["start", "center", "end"] as const).find((name) => zones[name].includes(id));
+  if (zone === undefined) return state;
+  const hidden = new Set(state.hidden);
+  const showing = (ids: readonly ColumnId[]) => ids.filter((other) => !hidden.has(other));
+  const before =
+    zone === "start" ? 0 : showing(zones.start).length + (zone === "end" ? showing(zones.center).length : 0);
+  const ids = zones[zone];
+  const others = ids.filter((other) => other !== id);
+  const shown = showing(others);
+  const last = shown[shown.length - 1];
+  if (last === undefined) return state;
+  const to = Math.max(0, Math.min(shown.length, (Math.trunc(toIndex) || 0) - before));
+  if (!hidden.has(id) && showing(ids).indexOf(id) === to) return state;
+  // Go in front of the shown column that will follow, or after the zone's last shown one.
+  const anchor = shown[to];
+  const at = anchor === undefined ? others.indexOf(last) + 1 : others.indexOf(anchor);
+  const next = [...others.slice(0, at), id, ...others.slice(at)];
+  if (next.every((other, i) => other === ids[i])) return state;
+
+  if (zone === "start") return { ...state, pinned: { start: next, end: state.pinned.end } };
+  if (zone === "end") return { ...state, pinned: { start: state.pinned.start, end: next } };
+  // Pinned columns keep their slots in `order`, so unpinning one puts it back where it was.
+  const pinned = new Set([...zones.start, ...zones.end]);
+  let i = 0;
+  const order = inOrder(columns, keepKnown(state.order, columnIds(columns))).map((column) =>
+    pinned.has(column.id) ? column.id : (next[i++] ?? column.id),
+  );
+  return { ...state, order };
+};
+
 const layoutApi = (ctx: FeatureApiContext<"columnLayout", ColumnLayoutState, void>): ColumnLayoutApi => {
   const setVisible = (id: ColumnId, visible: boolean | ((prev: ColumnLayoutState) => boolean)) =>
     ctx.setState((prev) => {
@@ -223,16 +292,7 @@ const layoutApi = (ctx: FeatureApiContext<"columnLayout", ColumnLayoutState, voi
     toggleVisible: (id) => setVisible(id, (prev) => !isColumnVisible(prev, id)),
     showAll: () => ctx.setState((prev) => (prev.hidden.length === 0 ? prev : { ...prev, hidden: none })),
     setOrder: (order) => ctx.setState((prev) => ({ ...prev, order })),
-    moveColumn: (id, toIndex) =>
-      ctx.setState((prev) => {
-        const ids = inOrder(ctx.columns(), prev.order).map((column) => column.id);
-        const from = ids.indexOf(id);
-        const to = Math.max(0, Math.min(ids.length - 1, Math.trunc(toIndex) || 0));
-        if (from === -1 || from === to) return prev;
-        ids.splice(from, 1);
-        ids.splice(to, 0, id);
-        return { ...prev, order: ids };
-      }),
+    moveColumn: (id, toIndex) => ctx.setState((prev) => moveInLayout(ctx.columns(), prev, id, toIndex)),
     pin: (id, zone) =>
       ctx.setState((prev) => {
         const start = withId(prev.pinned.start, id, zone === "start");

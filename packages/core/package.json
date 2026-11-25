@@ -89,7 +89,7 @@
       "name": "columnLayout",
       "path": "dist/esm/index.js",
       "import": "{ columnLayout }",
-      "limit": "1.4 kB"
+      "limit": "1.7 kB"
     }
   ]
 }
