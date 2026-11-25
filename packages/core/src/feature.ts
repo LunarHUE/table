@@ -1,4 +1,4 @@
-import type { SlicePatch, StateUpdater } from "./bindings.js";
+import type { StatePatch, StateUpdater } from "./bindings.js";
 import type { KeyedScope } from "./cells.js";
 import type { ColumnInfo, ColumnViewInfo, RowLike, RowsEffect, RowStagePhase } from "./contract.js";
 import { problem } from "./problem.js";
@@ -63,7 +63,7 @@ export interface FeatureApiContext<TName extends string, TState, TOptions, TRequ
   /** Writes this feature's state and the states of the features it requires, in one change. */
   patch(
     this: void,
-    updates: SlicePatch<{ readonly [K in TName as [TState] extends [never] ? never : K]: TState } & RequiredStateMap<TRequires>>,
+    updates: StatePatch<{ readonly [K in TName as [TState] extends [never] ? never : K]: TState } & RequiredStateMap<TRequires>>,
     options?: WriteOptions,
   ): void;
   /** The table's columns now. */

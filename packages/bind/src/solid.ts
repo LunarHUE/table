@@ -1,9 +1,9 @@
-import type { ExternalGroupBinding, ExternalSliceBinding } from "@lunarhue/table-core";
+import type { ExternalBinding, ExternalGroupBinding } from "@lunarhue/table-core";
 import { createEffect, createRoot, runWithOwner, untrack, type Accessor, type Setter } from "solid-js";
 
 // The declarations bundle core's types, so a consumer's emitted declarations
 // can name the types these functions return only through this entry.
-export type { ExternalGroupBinding, ExternalSliceBinding };
+export type { ExternalBinding, ExternalGroupBinding };
 
 /**
  * Binds a table slice to a Solid 2 signal, given as the getter and setter
@@ -12,7 +12,7 @@ export type { ExternalGroupBinding, ExternalSliceBinding };
  * watches the signal lives in a root of its own, made when the table gets
  * its first listener and disposed when it loses its last.
  */
-export function signal<T>(get: Accessor<T>, set: Setter<T>): ExternalSliceBinding<T> {
+export function signal<T>(get: Accessor<T>, set: Setter<T>): ExternalBinding<T> {
   return {
     get: () => untrack(get),
     // Table writes can come from inside a component or a computation, where

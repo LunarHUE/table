@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  createSliceCoordinator,
+  createStateCoordinator,
   type ControlledGroupBinding,
-  type ControlledSliceBinding,
+  type ControlledBinding,
   type ExternalGroupBinding,
-  type ExternalSliceBinding,
+  type ExternalBinding,
 } from "./bindings.js";
 import { createCells } from "./cells.js";
 
@@ -50,7 +50,7 @@ function externalStore<T>(start: T) {
         listeners.delete(listener);
       };
     }),
-  } satisfies ExternalSliceBinding<T>;
+  } satisfies ExternalBinding<T>;
   return {
     binding,
     listeners,
@@ -71,7 +71,7 @@ function controlledOwner<T>(start: T) {
   });
   return {
     onStateChange,
-    binding: (): ControlledSliceBinding<T> => ({ kind: "controlled", state, onStateChange }),
+    binding: (): ControlledBinding<T> => ({ kind: "controlled", state, onStateChange }),
     commit: () => {
       for (const updater of queue.splice(0)) state = updater(state);
       return state;
@@ -98,7 +98,7 @@ function controlledGroupOwner<T extends object>(start: T) {
 
 describe("internal slices", () => {
   it("starts from `initial` and applies values and updaters", () => {
-    const table = createSliceCoordinator({ initial });
+    const table = createStateCoordinator({ initial });
     expect(table.getSnapshot("filter")).toBe("");
     table.applyPatch({ filter: "abc" });
     table.applyPatch({ selection: (prev) => [...prev, "r1"] });
@@ -107,7 +107,7 @@ describe("internal slices", () => {
   });
 
   it("wakes each slice's listeners once per patch, after the whole patch", () => {
-    const table = createSliceCoordinator({ initial });
+    const table = createStateCoordinator({ initial });
     const seen: string[] = [];
     table.subscribe("filter", () => seen.push(`filter:${table.getSnapshot("pagination").pageIndex}`));
     const sorting = vi.fn<() => void>();
@@ -118,7 +118,7 @@ describe("internal slices", () => {
   });
 
   it("keeps the snapshot when an updater returns the same value", () => {
-    const table = createSliceCoordinator({ initial });
+    const table = createStateCoordinator({ initial });
     const listener = vi.fn<() => void>();
     table.subscribe("pagination", listener);
     table.applyPatch({ pagination: (prev) => prev });
@@ -127,7 +127,7 @@ describe("internal slices", () => {
   });
 
   it("returns `initial` as the server snapshot", () => {
-    const table = createSliceCoordinator({ initial });
+    const table = createStateCoordinator({ initial });
     table.applyPatch({ filter: "changed" });
     expect(table.getServerSnapshot("filter")).toBe("");
   });
@@ -135,7 +135,7 @@ describe("internal slices", () => {
   it("shares batches with cells passed in", () => {
     const cells = createCells();
     const [, , , batch] = cells;
-    const table = createSliceCoordinator({ initial, cells });
+    const table = createStateCoordinator({ initial, cells });
     const listener = vi.fn<() => void>();
     table.subscribe("filter", listener);
     batch(() => {
@@ -150,14 +150,14 @@ describe("internal slices", () => {
 describe("external slices", () => {
   it("does nothing to the store when created", () => {
     const store = externalStore<string>("outside");
-    createSliceCoordinator({ initial, bindings: { filter: store.binding } });
+    createStateCoordinator({ initial, bindings: { filter: store.binding } });
     expect(store.binding.get).not.toHaveBeenCalled();
     expect(store.binding.subscribe).not.toHaveBeenCalled();
   });
 
   it("reads the store, and writes to it on a patch", () => {
     const store = externalStore<string>("outside");
-    const table = createSliceCoordinator({ initial, bindings: { filter: store.binding } });
+    const table = createStateCoordinator({ initial, bindings: { filter: store.binding } });
     expect(table.getSnapshot("filter")).toBe("outside");
     table.applyPatch({ filter: (prev) => `${prev}!` });
     expect(store.binding.set).toHaveBeenCalledWith("outside!");
@@ -166,14 +166,14 @@ describe("external slices", () => {
 
   it("skips `set` when the value doesn't change", () => {
     const store = externalStore<string>("same");
-    const table = createSliceCoordinator({ initial, bindings: { filter: store.binding } });
+    const table = createStateCoordinator({ initial, bindings: { filter: store.binding } });
     table.applyPatch({ filter: "same" });
     expect(store.binding.set).not.toHaveBeenCalled();
   });
 
   it("subscribes with the first listener and unsubscribes with the last", () => {
     const store = externalStore<string>("a");
-    const table = createSliceCoordinator({ initial, bindings: { filter: store.binding } });
+    const table = createStateCoordinator({ initial, bindings: { filter: store.binding } });
     const first = vi.fn<() => void>();
     const offFirst = table.subscribe("filter", first);
     const offOther = table.subscribe("selection", () => {});
@@ -204,7 +204,7 @@ describe("external slices", () => {
 
   it("catches up with changes made while nobody listened", () => {
     const store = externalStore<string>("a");
-    const table = createSliceCoordinator({ initial, bindings: { filter: store.binding } });
+    const table = createStateCoordinator({ initial, bindings: { filter: store.binding } });
     expect(table.getSnapshot("filter")).toBe("a");
     store.write("b");
     const listener = vi.fn<() => void>();
@@ -215,7 +215,7 @@ describe("external slices", () => {
 
   it("uses getServerSnapshot, then get, for the server snapshot", () => {
     const store = externalStore<string>("client");
-    const table = createSliceCoordinator({
+    const table = createStateCoordinator({
       initial,
       bindings: {
         filter: { ...store.binding, getServerSnapshot: () => "server" },
@@ -230,7 +230,7 @@ describe("external slices", () => {
 describe("controlled slices", () => {
   it("lands two commands from one handler", () => {
     const owner = controlledOwner<readonly string[]>([]);
-    const table = createSliceCoordinator({ initial, bindings: { selection: owner.binding() } });
+    const table = createStateCoordinator({ initial, bindings: { selection: owner.binding() } });
 
     table.applyPatch({ selection: (prev) => [...prev, "r1"] });
     table.applyPatch({ selection: (prev) => [...prev, "r2"] });
@@ -244,7 +244,7 @@ describe("controlled slices", () => {
 
   it("turns a plain value into an updater", () => {
     const owner = controlledOwner("x");
-    const table = createSliceCoordinator({ initial, bindings: { filter: owner.binding() } });
+    const table = createStateCoordinator({ initial, bindings: { filter: owner.binding() } });
     table.applyPatch({ filter: "y" });
     const [updater] = owner.onStateChange.mock.calls[0] ?? [];
     expect(updater?.("ignored")).toBe("y");
@@ -252,7 +252,7 @@ describe("controlled slices", () => {
 
   it("wakes no listeners in updateControlled until flush", () => {
     const owner = controlledOwner("a");
-    const table = createSliceCoordinator({ initial, bindings: { filter: owner.binding() } });
+    const table = createStateCoordinator({ initial, bindings: { filter: owner.binding() } });
     const listener = vi.fn<() => void>();
     table.subscribe("filter", listener);
     const before = owner.binding();
@@ -270,13 +270,13 @@ describe("controlled slices", () => {
 
   it("uses the controlled state as the server snapshot", () => {
     const owner = controlledOwner("server");
-    const table = createSliceCoordinator({ initial, bindings: { filter: owner.binding() } });
+    const table = createStateCoordinator({ initial, bindings: { filter: owner.binding() } });
     expect(table.getServerSnapshot("filter")).toBe("server");
   });
 
   it("refuses a slice that changes owner", () => {
     const owner = controlledOwner("a");
-    const table = createSliceCoordinator({ initial, bindings: { filter: owner.binding() } });
+    const table = createStateCoordinator({ initial, bindings: { filter: owner.binding() } });
     expect(() => table.updateControlled({})).toThrow(/bind:owner|Slice "filter"/);
     expect(() => table.updateControlled({ filter: owner.binding(), selection: controlledOwner<readonly string[]>([]).binding() })).toThrow(
       /selection/,
@@ -320,7 +320,7 @@ describe("group owners", () => {
 
   it("sends a filter change and a page reset to the URL in one call", () => {
     const url = urlStore(startUrl);
-    const table = createSliceCoordinator({
+    const table = createStateCoordinator({
       initial,
       bindings: { sorting: url.binding, filter: url.binding, pagination: url.binding },
     });
@@ -337,14 +337,14 @@ describe("group owners", () => {
 
   it("skips `set` when no slice in the group changes", () => {
     const url = urlStore(startUrl);
-    const table = createSliceCoordinator({ initial, bindings: { filter: url.binding, sorting: url.binding } });
+    const table = createStateCoordinator({ initial, bindings: { filter: url.binding, sorting: url.binding } });
     table.applyPatch({ filter: "", sorting: (prev) => prev });
     expect(url.binding.set).not.toHaveBeenCalled();
   });
 
   it("subscribes to the group once and wakes only the slices that changed", () => {
     const url = urlStore(startUrl);
-    const table = createSliceCoordinator({
+    const table = createStateCoordinator({
       initial,
       bindings: { sorting: url.binding, filter: url.binding, pagination: url.binding },
     });
@@ -360,7 +360,7 @@ describe("group owners", () => {
 
   it("reads each slice's server snapshot from the group", () => {
     const url = urlStore(startUrl);
-    const table = createSliceCoordinator({ initial, bindings: { pagination: url.binding } });
+    const table = createStateCoordinator({ initial, bindings: { pagination: url.binding } });
     expect(table.getServerSnapshot("pagination")).toBe(startUrl.pagination);
   });
 
@@ -370,7 +370,7 @@ describe("group owners", () => {
       pagination: { pageIndex: 2, pageSize: 10 },
     });
     const group = owner.group();
-    const table = createSliceCoordinator({ initial, bindings: { filter: group, pagination: group } });
+    const table = createStateCoordinator({ initial, bindings: { filter: group, pagination: group } });
     table.applyPatch({ filter: "a", pagination: (prev) => ({ ...prev, pageIndex: 0 }) });
     table.applyPatch({ pagination: (prev) => ({ ...prev, pageSize: 50 }) });
     expect(owner.onStateChange).toHaveBeenCalledTimes(2);
@@ -384,7 +384,7 @@ describe("group owners", () => {
   it("refuses a controlled group split across two objects in a later render", () => {
     const owner = controlledGroupOwner<Pick<State, "filter" | "pagination">>({ filter: "", pagination: initial.pagination });
     const group = owner.group();
-    const table = createSliceCoordinator({ initial, bindings: { filter: group, pagination: group } });
+    const table = createStateCoordinator({ initial, bindings: { filter: group, pagination: group } });
     expect(() => table.updateControlled({ filter: owner.group(), pagination: owner.group() })).toThrow(/pagination/);
   });
 });
@@ -402,7 +402,7 @@ describe("mixed owners", () => {
       subscribe: () => () => {},
     };
     const storage = externalStore<State["visibility"]>({ price: true });
-    const table = createSliceCoordinator({
+    const table = createStateCoordinator({
       initial,
       bindings: { filter: urlBinding, pagination: urlBinding, visibility: storage.binding },
     });

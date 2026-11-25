@@ -20,19 +20,37 @@ export {
 } from "./cells.js";
 export { problem, type Code } from "./problem.js";
 export {
-  createSliceCoordinator,
+  bindGroup,
+  createStateCoordinator,
+  type ControlledBinding,
   type ControlledGroupBinding,
-  type ControlledSliceBinding,
+  type ControlledGroupInput,
   type CoordinatorOptions,
+  type ExternalBinding,
   type ExternalGroupBinding,
-  type ExternalSliceBinding,
+  type ExternalGroupInput,
+  type FeatureBinding,
+  type FeatureBindings,
   type GroupBinding,
-  type SliceBinding,
-  type SliceBindings,
-  type SlicePatch,
   type StateCoordinator,
+  type StatePatch,
   type StateUpdater,
 } from "./bindings.js";
+export {
+  defineStateAdapter,
+  resolveTableState,
+  type AdapterExtraArgs,
+  type AdapterFeatureState,
+  type AdapterParseResult,
+  type KnownFeatureStates,
+  type LooseColumnIds,
+  type LooseFeatureInput,
+  type NoCustomFeatures,
+  type PartialTableState,
+  type ResolvedTableState,
+  type StateAdapter,
+  type StateAdapterConfig,
+} from "./state-adapter.js";
 export {
   ROW_STAGE_PHASES,
   type ColumnId,

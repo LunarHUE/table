@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useReducer, useState } from "react";
 // once, here at load, so a component calls the same hooks on every render.
 
 /** The hooks React 18 added, which React 16.8 and 17 lack. */
-type Added = Partial<Pick<typeof React, "useId" | "useSyncExternalStore">>;
+type Added = Partial<Pick<typeof React, "useId" | "useSyncExternalStore" | "useTransition">>;
 
 const added: Added = React;
 
@@ -102,3 +102,13 @@ const useCountedId = (): string => useState(newId)[0];
 
 /** React's `useId`, or a counted id on React 16.8 and 17, which doesn't match between server and client. */
 export const useId: () => string = optional("useId") ?? useCountedId;
+
+const runSync = (fn: () => void): void => {
+  fn();
+};
+const noTransition: readonly [boolean, (fn: () => void) => void] = Object.freeze([false, runSync]);
+const useFallbackTransition = (): readonly [boolean, (fn: () => void) => void] => noTransition;
+
+/** React's `useTransition`, or a synchronous fallback on React 16.8 and 17. */
+export const useTransition: () => readonly [boolean, (fn: () => void) => void] =
+  optional("useTransition") ?? useFallbackTransition;

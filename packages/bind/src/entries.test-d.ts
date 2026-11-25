@@ -1,4 +1,4 @@
-import type { ControlledGroupBinding, ExternalGroupBinding, ExternalSliceBinding, TableStoreOptions } from "@lunarhue/table-core";
+import type { ControlledGroupBinding, ExternalGroupBinding, ExternalBinding, TableStoreOptions } from "@lunarhue/table-core";
 import type { UrlStateOf } from "@lunarhue/table-core/url";
 import { createSignal } from "solid-js";
 import { expectTypeOf, it } from "vitest";
@@ -41,8 +41,8 @@ it("infers zustand slices from select", () => {
     query: { filtering: {}, pagination: { pageIndex: 0, pageSize: 10 } },
   }));
   const sorting = zustand(store, { select: (s) => s.sorting, update: (next) => ({ sorting: next }) });
-  expectTypeOf(sorting).toEqualTypeOf<ExternalSliceBinding<SortingState>>();
-  expectTypeOf(zustand(store)).toEqualTypeOf<ExternalSliceBinding<AppState>>();
+  expectTypeOf(sorting).toEqualTypeOf<ExternalBinding<SortingState>>();
+  expectTypeOf(zustand(store)).toEqualTypeOf<ExternalBinding<AppState>>();
   fits({ sorting });
 
   const group = zustandGroup(store, { select: (s) => s.query, update: (query) => ({ query }) });
@@ -60,7 +60,7 @@ it("takes the hook create returns", () => {
 
 it("infers Solid signal slices", () => {
   const [sorting, setSorting] = createSignal<SortingState>([]);
-  expectTypeOf(signal(sorting, setSorting)).toEqualTypeOf<ExternalSliceBinding<SortingState>>();
+  expectTypeOf(signal(sorting, setSorting)).toEqualTypeOf<ExternalBinding<SortingState>>();
   const [query, setQuery] = createSignal<AppState["query"]>({ filtering: {}, pagination: { pageIndex: 0, pageSize: 10 } });
   const group = signalGroup(query, setQuery);
   expectTypeOf(group).toEqualTypeOf<ExternalGroupBinding<AppState["query"]>>();
