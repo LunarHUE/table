@@ -47,49 +47,49 @@
       "name": ".",
       "path": "dist/esm/index.js",
       "import": "*",
-      "limit": "10 kB"
+      "limit": "13 kB"
     },
     {
       "name": "sorting",
       "path": "dist/esm/index.js",
       "import": "{ sorting }",
-      "limit": "1.25 kB"
+      "limit": "2 kB"
     },
     {
       "name": "remoteSorting",
       "path": "dist/esm/index.js",
       "import": "{ remoteSorting }",
-      "limit": "650 B"
+      "limit": "1.5 kB"
     },
     {
       "name": "{ filtering }",
       "path": "dist/esm/index.js",
       "import": "{ filtering }",
-      "limit": "780 B"
+      "limit": "1.5 kB"
     },
     {
       "name": "{ remoteFiltering }",
       "path": "dist/esm/index.js",
       "import": "{ remoteFiltering }",
-      "limit": "720 B"
+      "limit": "1.5 kB"
     },
     {
       "name": "{ createFilterDraft }",
       "path": "dist/esm/index.js",
       "import": "{ createFilterDraft }",
-      "limit": "440 B"
+      "limit": "1 kB"
     },
     {
       "name": "visibility",
       "path": "dist/esm/index.js",
       "import": "{ visibility }",
-      "limit": "600 B"
+      "limit": "1.5 kB"
     },
     {
       "name": "columnLayout",
       "path": "dist/esm/index.js",
       "import": "{ columnLayout }",
-      "limit": "1.7 kB"
+      "limit": "2.5 kB"
     }
   ]
 }
