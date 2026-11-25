@@ -1,4 +1,4 @@
-import { createRoot, createSignal, flush } from "solid-js";
+import { createRoot, createSignal, flush, runWithOwner } from "solid-js";
 import { describe, expect, it } from "vitest";
 import { createTableBinding } from "./binding.js";
 import {
@@ -11,6 +11,7 @@ import {
   remoteFiltering,
   remotePagination,
   remoteSorting,
+  selection,
   sorting,
 } from "./index.js";
 
@@ -27,6 +28,12 @@ const usersTable = defineTable<User>()({
     remoteFiltering({ initial: { q: "" } }),
     remotePagination({ sizes: [10, 25] }),
   ],
+});
+
+const selectableUsersTable = defineTable<User>()({
+  getRowId: (u) => u.id,
+  columns: (col) => [col.key("name", { sortable: true })],
+  features: [remoteSorting(), remoteFiltering({ initial: { q: "" } }), remotePagination({ sizes: [10, 25] }), selection()],
 });
 
 const ordersTable = defineTable<{ readonly id: string; readonly total: number }>()({
@@ -122,6 +129,45 @@ describe("createTableBinding", () => {
       table.pagination.setPage(0);
       flush();
       expect(search()).toEqual({ sort: "total.asc" });
+
+      dispose();
+    });
+  });
+
+  it("clears an all-matching selection when the source changes the filter, with no onWrite", () => {
+    createRoot((dispose) => {
+      const writes: string[] = [];
+      const [search, setSearch] = createSignal<Readonly<Record<string, string | undefined>>>({ q: "ada" });
+      const { bind } = createTableBinding(selectableUsersTable, appUrl, {
+        input: search,
+        onWrite(sp) {
+          writes.push(sp.toString());
+          setSearch(Object.fromEntries(sp));
+        },
+      });
+      const table = createTable(selectableUsersTable, () => ({ bind: bind() }));
+      const picked = createFeatureState(table, "selection");
+      const page = createFeatureState(table, "pagination");
+      flush();
+
+      table.selection.selectAllMatching();
+      flush();
+      expect(picked().mode).toBe("all");
+
+      // A link or the back button: the source changes without the table, from an event outside any owner.
+      const navigate = (next: Readonly<Record<string, string | undefined>>) => runWithOwner(null, () => setSearch(next));
+      navigate({ q: "grace", page: "2" });
+      flush();
+      expect(picked().mode).toBe("ids");
+      expect(page().pageIndex).toBe(1);
+
+      // A source that changes only the page keeps the selection.
+      table.selection.selectAllMatching();
+      flush();
+      navigate({ q: "grace", page: "3" });
+      flush();
+      expect(picked().mode).toBe("all");
+      expect(writes).toEqual([]);
 
       dispose();
     });
