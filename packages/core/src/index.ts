@@ -154,3 +154,20 @@ export {
   type PaginationRequest,
   type PaginationState,
 } from "./features/pagination.js";
+export {
+  getSortDir,
+  getSortIndex,
+  remoteSorting,
+  sortDir,
+  sorting,
+  type RemoteSortingFeature,
+  type RemoteSortingOptions,
+  type SortComparator,
+  type SortDir,
+  type SortEntry,
+  type SortingApi,
+  type SortingFeature,
+  type SortingOptions,
+  type SortingState,
+  type SortWriteOptions,
+} from "./features/sorting.js";

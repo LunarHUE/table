@@ -17,9 +17,9 @@ export type JsonValue = JsonPrimitive | JsonArray | JsonObject;
 
 /**
  * What a state change does to the rows. `"matching"` changes which rows
- * match, as a new filter does. `"view"` changes how the same rows show, as
- * a new sort or page does. `"none"` leaves the rows alone, as column
- * visibility does.
+ * match or their order, as a new filter or sort does, so a page index
+ * starts over. `"view"` changes how the same rows show, as a new page does.
+ * `"none"` leaves the rows alone, as column visibility does.
  */
 export type RowsEffect = "matching" | "view" | "none";
 
