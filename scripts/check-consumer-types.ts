@@ -1,14 +1,15 @@
-// Checks that a consumer who depends only on an adapter (or core) can emit
-// and type-check declarations for its own code with skipLibCheck off. Strict
-// installs (pnpm, Bun isolated) don't let that consumer resolve
-// `@lunarhue/table-core` when only `@lunarhue/table-react` or
-// `@lunarhue/table-solid` is installed, so every type its declarations name
-// must come from the adapter's bundled declarations.
+// Checks that a consumer can emit and type-check declarations for its own code
+// with skipLibCheck off. Each consumer gets a strict, pnpm-style install: our
+// packages are copied into node_modules/.pnpm, and a package sees only its own
+// dependencies. A consumer that installs only `@lunarhue/table-react` or
+// `@lunarhue/table-solid` can't resolve `@lunarhue/table-core`, so its
+// declarations must name core's types through the adapter's re-exports. A
+// consumer that installs core too must get the same types from both.
 //
 // Build first:
 //   bun run build && bun run check:consumer-types
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,10 +17,13 @@ import { fileURLToPath } from "node:url";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const tsc = join(root, "node_modules", ".bin", "tsc");
 
+type Package = "core" | "react" | "solid";
+
 interface Consumer {
   readonly name: string;
   readonly source: string;
-  readonly links: Readonly<Record<string, string>>;
+  /** Our packages the consumer depends on. Their peers are installed with them. */
+  readonly installs: readonly Package[];
 }
 
 const coreConsumer = `
@@ -175,6 +179,7 @@ import {
   type SelectionCellApi,
   type SelectionHeaderApi,
 } from "@lunarhue/table-solid";
+import { createSignal } from "solid-js";
 
 export interface User {
   readonly id: string;
@@ -210,39 +215,98 @@ export const appUrl = defineStateAdapter({
 });
 
 export function setupUsers(data: () => readonly User[]) {
+  const [page] = createSignal(0);
   const { bind, state } = createTableBinding(usersTable, appUrl, { input: "", onWrite: () => {} });
   const table = createTable(usersTable, () => ({ bind: bind() }));
   const view = createTableRows(table, data);
   const groups = createHeaderGroups(table);
   const columns = createVisibleColumns(table);
   const pager = createPagination(table, view);
-  return { table, view, groups, columns, pager, state, Cell, Header, Footer };
+  return { table, view, groups, columns, pager, state, page, Cell, Header, Footer };
 }
 `;
 
-const ours = (name: string) => ({ [`@lunarhue/table-${name}`]: `packages/${name}` });
+// Apps that install core next to an adapter, as the READMEs show, mix imports.
+// Each core type must be the same type through both packages, or a value made
+// with core's `defineStateAdapter` fails the adapter's binding with TS2345.
+const mixedShared = (adapter: string) => `
+import * as core from "@lunarhue/table-core";
+import * as adapter from "${adapter}";
+
+type Same<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+
+export interface User {
+  readonly id: string;
+  readonly name: string;
+}
+
+export const usersTable = core.defineTable<User>()({
+  getRowId: (u) => u.id,
+  columns: (col) => [col.key("name", { label: "Name", sortable: true })],
+  features: [core.sorting(), core.pagination({ sizes: [10, 25] }), core.selection()],
+});
+
+export const appUrl = core.defineStateAdapter({
+  features: ["sorting", "pagination"] as const,
+  parse: (_raw: string) => ({}),
+  serialize: () => "",
+});
+
+type UsersDef = typeof usersTable;
+export const sameTypes: [
+  Same<core.StateAdapter<readonly ["sorting"], string, string>, adapter.StateAdapter<readonly ["sorting"], string, string>>,
+  Same<core.TableDef<User>, adapter.TableDef<User>>,
+  Same<core.TableStore<UsersDef>, adapter.TableStore<UsersDef>>,
+  Same<core.ExternalBinding<number>, adapter.ExternalBinding<number>>,
+  Same<core.FeatureBindings<core.StateOf<UsersDef>>, adapter.FeatureBindings<adapter.StateOf<UsersDef>>>,
+  Same<typeof core.defineStateAdapter, typeof adapter.defineStateAdapter>,
+  Same<typeof core.defineTable, typeof adapter.defineTable>,
+] = [true, true, true, true, true, true, true];
+
+// The adapter's own copies flow into core, too.
+export const adapterUrl: core.StateAdapter<readonly ["sorting", "pagination"], string, string> = adapter.defineStateAdapter({
+  features: ["sorting", "pagination"] as const,
+  parse: (_raw: string) => ({}),
+  serialize: () => "",
+});
+export const initial = core.resolveTableState(usersTable);
+`;
+
+const reactMixedConsumer = `${mixedShared("@lunarhue/table-react")}
+export function useUsers(data: readonly User[]) {
+  const { bind } = adapter.useTableBinding(usersTable, appUrl, { input: "", onWrite: () => {} });
+  const table: core.TableStore<UsersDef> = adapter.useTable(usersTable, { bind });
+  const view = adapter.useTableRows(table, data);
+  return { table, view };
+}
+`;
+
+const solidMixedConsumer = `${mixedShared("@lunarhue/table-solid")}
+import { createSignal } from "solid-js";
+
+export function setupUsers(data: () => readonly User[]) {
+  const [page] = createSignal(0);
+  const { bind, state } = adapter.createTableBinding(usersTable, appUrl, { input: "", onWrite: () => {} });
+  const table: core.TableStore<UsersDef> = adapter.createTable(usersTable, () => ({ bind: bind() }));
+  const view = adapter.createTableRows(table, data);
+  return { table, view, state, page };
+}
+`;
 
 const consumers: readonly Consumer[] = [
-  { name: "core", source: coreConsumer, links: ours("core") },
-  {
-    name: "react (without core installed)",
-    source: reactConsumer,
-    links: {
-      ...ours("react"),
-      react: "packages/react/node_modules/react",
-      "@types/react": "packages/react/node_modules/@types/react",
-    },
-  },
-  {
-    name: "solid (without core installed)",
-    source: solidConsumer,
-    links: {
-      ...ours("solid"),
-      "solid-js": "packages/solid/node_modules/solid-js",
-      "@solidjs/web": "packages/solid/node_modules/@solidjs/web",
-    },
-  },
+  { name: "core", source: coreConsumer, installs: ["core"] },
+  { name: "react (without core installed)", source: reactConsumer, installs: ["react"] },
+  { name: "solid (without core installed)", source: solidConsumer, installs: ["solid"] },
+  { name: "core + react", source: reactMixedConsumer, installs: ["core", "react"] },
+  { name: "core + solid", source: solidMixedConsumer, installs: ["core", "solid"] },
 ];
+
+const dependencies: Readonly<Record<Package, readonly Package[]>> = { core: [], react: ["core"], solid: ["core"] };
+const peers: Readonly<Record<Package, readonly string[]>> = {
+  core: [],
+  react: ["react", "@types/react"],
+  solid: ["solid-js", "@solidjs/web"],
+};
 
 const compilerOptions = {
   target: "es2022",
@@ -254,10 +318,33 @@ const compilerOptions = {
   types: [],
 };
 
-function link(dir: string, name: string, target: string): void {
-  const path = join(dir, "node_modules", name);
+function link(nodeModules: string, name: string, target: string): void {
+  const path = join(nodeModules, name);
   mkdirSync(dirname(path), { recursive: true });
   symlinkSync(target, path, "dir");
+}
+
+const packageName = (pkg: Package): string => `@lunarhue/table-${pkg}`;
+
+// Lays out node_modules/.pnpm/<pkg>/node_modules with a copy of the package
+// beside links to its dependencies and peers, then links the installed
+// packages and their peers into the consumer's node_modules.
+function install(dir: string, installs: readonly Package[]): void {
+  const nodeModules = join(dir, "node_modules");
+  const store = (pkg: Package) => join(nodeModules, ".pnpm", pkg, "node_modules");
+  const peerPath = (pkg: Package, peer: string) => join(root, "packages", pkg, "node_modules", peer);
+  for (const pkg of ["core", "react", "solid"] as const) {
+    cpSync(join(root, "packages", pkg), join(store(pkg), packageName(pkg)), {
+      recursive: true,
+      filter: (source) => !/[\\/](node_modules|src)$/.test(source),
+    });
+    for (const dep of dependencies[pkg]) link(store(pkg), packageName(dep), join(store(dep), packageName(dep)));
+    for (const peer of peers[pkg]) link(store(pkg), peer, peerPath(pkg, peer));
+  }
+  for (const pkg of installs) {
+    link(nodeModules, packageName(pkg), join(store(pkg), packageName(pkg)));
+    for (const peer of peers[pkg]) link(nodeModules, peer, peerPath(pkg, peer));
+  }
 }
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -275,10 +362,10 @@ function run(cwd: string, project: string): string | undefined {
 }
 
 let failed = false;
-for (const { name, source, links } of consumers) {
+for (const { name, source, installs } of consumers) {
   const dir = mkdtempSync(join(tmpdir(), "table-consumer-"));
   try {
-    for (const [pkg, path] of Object.entries(links)) link(dir, pkg, join(root, path));
+    install(dir, installs);
     writeFileSync(join(dir, "package.json"), JSON.stringify({ type: "module" }));
     writeFileSync(join(dir, "index.ts"), source);
     writeFileSync(
