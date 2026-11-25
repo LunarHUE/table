@@ -84,3 +84,14 @@ export {
   type ServerRequestMap,
   type WriteOptions,
 } from "./feature.js";
+export {
+  defineColumn,
+  defineColumns,
+  withProps,
+  type AnyColumn,
+  type Column,
+  type ColumnBuilder,
+  type ColumnMeta,
+  type ColumnOptions,
+  type RowIdContext,
+} from "./column.js";
