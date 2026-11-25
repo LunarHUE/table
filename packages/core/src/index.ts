@@ -1,8 +1,8 @@
 // The framework-free core: reactive cells, keyed stores for rows, columns
 // and cells, diagnostics, the bindings that let apps own state slices,
 // `defineFeature`, which every table feature is made with, `defineTable`
-// with its column helpers, the row and column pipelines, and
-// `createTableStore`, which runs a table.
+// with its column helpers, the row and column pipelines,
+// `createTableStore`, which runs a table, and the built-in features.
 
 /** The package's name, as published. */
 export const coreName = "@lunarhue/table-core";
@@ -143,3 +143,14 @@ export {
   type TableStoreMethods,
   type TableStoreOptions,
 } from "./store.js";
+export {
+  computePaginationMeta,
+  pagination,
+  remotePagination,
+  type PaginationApi,
+  type PaginationMeta,
+  type PaginationMode,
+  type PaginationOptions,
+  type PaginationRequest,
+  type PaginationState,
+} from "./features/pagination.js";
