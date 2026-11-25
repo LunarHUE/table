@@ -55,6 +55,7 @@ class Committed<S> {
 }
 
 const bump = (count: number): number => count + 1;
+const readSnapshot = <S>(getSnapshot: () => S, _tick: number): S => getSnapshot();
 
 /**
  * The fallback on the client. It renders the current snapshot, then checks it
@@ -63,12 +64,10 @@ const bump = (count: number): number => count + 1;
  * re-renders it whenever the snapshot changes.
  */
 function useStoreOnClient<S>(subscribe: (onChange: () => void) => () => void, getSnapshot: () => S): S {
-  // The React Compiler would cache `getSnapshot()` for as long as
-  // `getSnapshot` is the same function, and never read the store again.
-  "use no memo";
-  const value = getSnapshot();
+  const [tick, rerender] = useReducer(bump, 0);
+  // Depend on `tick` so React Compiler re-runs `getSnapshot()` on every `rerender()`.
+  const value = readSnapshot(getSnapshot, tick);
   const [committed] = useState(() => new Committed(value, getSnapshot));
-  const [, rerender] = useReducer(bump, 0);
   useLayoutEffect(() => {
     committed.record(value, getSnapshot);
     if (committed.stale()) rerender();
