@@ -3,6 +3,7 @@ import {
   computeSelectAllState,
   computeSelectionSummary,
   isFiltered,
+  stepPage,
   type PaginationApi,
   type PaginationMeta,
   type PaginationState,
@@ -50,30 +51,36 @@ const paginationOf = (state: unknown): PaginationState =>
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   state === undefined ? firstPage : (state as PaginationState);
 
+/** Whether the table pages its rows itself, as client `pagination()` does, so the page shown is clamped to the rows. */
+const pagesLocally = (store: Store): boolean => store.def.resolvedFeatures.byName.get("pagination")?.def.rowStage !== undefined;
+
 /**
  * The pager for a paginated table: page, size, page count and whether there
  * is a page before or after, worked out from the state and `view.totalCount`.
  * `next` stops at the last page and `prev` at the first, and both work when
- * nothing matches.
+ * nothing matches. With client `pagination()`, a page past the last one reads
+ * as the last page, which is what the rows show, and `prev` and `next` step
+ * from there.
  */
 export function usePagination(table: PaginatedTable, view: CountsView): PaginationControls {
   const store = storeOf(table);
   const state = paginationOf(useSource(featureSource(store, "pagination")));
   const api = table.pagination;
+  const clamp = pagesLocally(store);
   const { totalCount } = view;
   return useMemo(() => {
-    const meta = computePaginationMeta(state, totalCount, api.sizes);
+    const meta = computePaginationMeta(state, totalCount, api.sizes, clamp);
     const { pageCount } = meta;
     return {
       ...meta,
-      next: () => api.setPage((index) => (index + 1 < pageCount ? index + 1 : index)),
-      prev: () => api.setPage((index) => (index > 0 ? index - 1 : index)),
+      next: () => api.setPage((index) => stepPage(index, pageCount, 1, clamp)),
+      prev: () => api.setPage((index) => stepPage(index, pageCount, -1, clamp)),
       setPage: api.setPage,
       setPageSize: api.setPageSize,
       setCursor: api.setCursor,
       reset: api.reset,
     };
-  }, [state, totalCount, api]);
+  }, [state, totalCount, api, clamp]);
 }
 
 const noSelection: SelectionState = Object.freeze({ mode: "ids", ids: Object.freeze([]) });

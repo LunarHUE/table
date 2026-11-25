@@ -7,11 +7,13 @@ import {
   Footer,
   createTableStore,
   defineTable,
+  pagination,
   remotePagination,
   remoteSorting,
   sortDir,
   useColumnState,
   useFeatureState,
+  usePagination,
   useSelectAll,
   useSelection,
   useTable,
@@ -499,5 +501,117 @@ describe("Footer", () => {
     );
     expect(screen.getByTestId("total").textContent).toBe("$40 (2)");
     expect(screen.getAllByRole("cell")[0]?.textContent).toBe("");
+  });
+});
+
+interface Item {
+  readonly id: string;
+}
+
+const itemsOf = (n: number): readonly Item[] => Array.from({ length: n }, (_, i) => ({ id: `i${i}` }));
+
+const pagedItems = defineTable<Item>()({
+  getRowId: (item) => item.id,
+  columns: (col) => [col.key("id")],
+  features: [pagination({ sizes: [10] })],
+});
+
+const remoteItems = defineTable<Item>()({
+  getRowId: (item) => item.id,
+  columns: (col) => [col.key("id")],
+  features: [remotePagination({ sizes: [10] })],
+  // As if the URL asked for page 5 before the server answered.
+  initialState: { pagination: { pageIndex: 4, pageSize: 10 } },
+});
+
+interface ItemPagerProps {
+  readonly items: readonly Item[];
+  readonly totalCount?: number;
+}
+
+function ItemPager({ items }: ItemPagerProps) {
+  const table = useTable(pagedItems);
+  const view = useTableRows(table, items);
+  const pager = usePagination(table, view);
+  return (
+    <div>
+      <output aria-label="rows">{view.rows.map((row) => row.id).join(",")}</output>
+      <output aria-label="page">{`page ${pager.pageIndex + 1} of ${pager.pageCount}`}</output>
+      <button type="button" onClick={pager.prev} disabled={!pager.canPrev}>
+        prev
+      </button>
+      <button type="button" onClick={pager.next} disabled={!pager.canNext}>
+        next
+      </button>
+      <button type="button" onClick={() => table.pagination.setPage(9)}>
+        last
+      </button>
+    </div>
+  );
+}
+
+function RemoteItemPager({ items, totalCount }: ItemPagerProps) {
+  const table = useTable(remoteItems);
+  const view = useTableRows(table, items, totalCount === undefined ? undefined : { totalCount });
+  const pager = usePagination(table, view);
+  const request = useTableRequest(table);
+  return (
+    <div>
+      <output aria-label="page">{`page ${pager.pageIndex + 1} of ${pager.pageCount}`}</output>
+      <output aria-label="request">{String(request.pagination.pageIndex)}</output>
+      <button type="button" onClick={pager.prev} disabled={!pager.canPrev}>
+        prev
+      </button>
+    </div>
+  );
+}
+
+const text = (name: string) => screen.getByRole("status", { name }).textContent;
+const button = (name: string) => screen.getByRole<HTMLButtonElement>("button", { name });
+
+describe("usePagination when the data shrinks", () => {
+  it("shows the last page that has rows and steps from it", async () => {
+    const user = userEvent.setup();
+    const view = render(<ItemPager items={itemsOf(100)} />);
+    await user.click(button("last"));
+    expect(text("page")).toBe("page 10 of 10");
+    expect(text("rows")).toBe("i90,i91,i92,i93,i94,i95,i96,i97,i98,i99");
+
+    view.rerender(<ItemPager items={itemsOf(15)} />);
+    expect(text("page")).toBe("page 2 of 2");
+    expect(text("rows")).toBe("i10,i11,i12,i13,i14");
+    expect(button("prev").disabled).toBe(false);
+    expect(button("next").disabled).toBe(true);
+
+    await user.click(button("prev"));
+    expect(text("page")).toBe("page 1 of 2");
+    expect(text("rows")).toBe("i0,i1,i2,i3,i4,i5,i6,i7,i8,i9");
+    expect(button("prev").disabled).toBe(true);
+    await user.click(button("next"));
+    expect(text("page")).toBe("page 2 of 2");
+    expect(text("rows")).toBe("i10,i11,i12,i13,i14");
+  });
+
+  it("shows page 1 with no rows when the data empties", async () => {
+    const user = userEvent.setup();
+    const view = render(<ItemPager items={itemsOf(100)} />);
+    await user.click(button("last"));
+    view.rerender(<ItemPager items={[]} />);
+    expect(text("page")).toBe("page 1 of 0");
+    expect(text("rows")).toBe("");
+    expect(button("prev").disabled).toBe(true);
+    expect(button("next").disabled).toBe(true);
+  });
+
+  it("keeps remotePagination's page while the count is unknown, and steps back from it", async () => {
+    const user = userEvent.setup();
+    const view = render(<RemoteItemPager items={[]} />);
+    expect(text("page")).toBe("page 5 of 0");
+    expect(text("request")).toBe("4");
+    view.rerender(<RemoteItemPager items={itemsOf(10)} totalCount={100} />);
+    expect(text("page")).toBe("page 5 of 10");
+    await user.click(button("prev"));
+    expect(text("page")).toBe("page 4 of 10");
+    expect(text("request")).toBe("3");
   });
 });

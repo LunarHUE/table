@@ -5,6 +5,7 @@ import {
   createColumnState,
   createFeatureState,
   createIsFiltered,
+  createPagination,
   createRowState,
   createSelectAll,
   createTable,
@@ -301,5 +302,85 @@ describe("column parts without defineCell", () => {
     await settle();
     expect(boxes.every((b) => b.checked)).toBe(true);
     expect(allBox.checked).toBe(true);
+  });
+});
+
+const ids = (rows: readonly { readonly id: string }[]) => rows.map((row) => row.id);
+
+describe("createPagination when the data shrinks", () => {
+  it("shows the last page that has rows and steps from it", () => {
+    const [data, setData] = createSignal<readonly User[]>(people);
+    const table = createRoot(() => createTable(makeDef()));
+    const { view, pager } = createRoot(() => {
+      const rows = createTableRows(table, data);
+      return { view: rows, pager: createPagination(table, rows) };
+    });
+    table.pagination.setPage(2);
+    flush();
+    expect(ids(view().rows)).toEqual(["u5"]);
+    expect(pager.pageIndex).toBe(2);
+
+    setData(people.slice(0, 3));
+    flush();
+    expect(ids(view().rows)).toEqual(["u3"]);
+    expect(pager).toMatchObject({ pageIndex: 1, pageCount: 2, canPrev: true, canNext: false });
+
+    pager.prev();
+    flush();
+    expect(table.getFeatureState("pagination").pageIndex).toBe(0);
+    expect(ids(view().rows)).toEqual(["u1", "u2"]);
+    expect(pager).toMatchObject({ pageIndex: 0, canPrev: false, canNext: true });
+    pager.next();
+    flush();
+    expect(ids(view().rows)).toEqual(["u3"]);
+    expect(pager).toMatchObject({ pageIndex: 1, canPrev: true, canNext: false });
+  });
+
+  it("shows page 0 with no rows when the data empties", () => {
+    const [data, setData] = createSignal<readonly User[]>(people);
+    const table = createRoot(() => createTable(makeDef()));
+    const { view, pager } = createRoot(() => {
+      const rows = createTableRows(table, data);
+      return { view: rows, pager: createPagination(table, rows) };
+    });
+    table.pagination.setPage(2);
+    setData([]);
+    flush();
+    expect(view().rows).toEqual([]);
+    expect(pager).toMatchObject({ pageIndex: 0, pageCount: 0, canPrev: false, canNext: false });
+    pager.prev();
+    flush();
+    expect(pager.pageIndex).toBe(0);
+  });
+
+  it("keeps remotePagination's page while the count is unknown, and steps back from it", () => {
+    const def = defineTable<User>()({
+      getRowId: (user) => user.id,
+      columns: (col) => [col.key("name")],
+      features: [remotePagination()],
+      initialState: { pagination: { pageIndex: 4, pageSize: 10 } },
+    });
+    const [total, setTotal] = createSignal<number | undefined>(undefined);
+    const table = createRoot(() => createTable(def));
+    const pager = createRoot(() => {
+      const rows = createTableRows(
+        table,
+        () => (total() === undefined ? [] : people),
+        () => {
+          const totalCount = total();
+          return totalCount === undefined ? undefined : { totalCount };
+        },
+      );
+      return createPagination(table, rows);
+    });
+    expect(pager).toMatchObject({ pageIndex: 4, pageCount: 0, canPrev: true, canNext: false });
+    expect(table.getRequest().pagination).toEqual({ pageIndex: 4, pageSize: 10 });
+    setTotal(100);
+    flush();
+    expect(pager).toMatchObject({ pageIndex: 4, pageCount: 10, canPrev: true, canNext: true });
+    pager.prev();
+    flush();
+    expect(pager.pageIndex).toBe(3);
+    expect(table.getRequest().pagination).toEqual({ pageIndex: 3, pageSize: 10 });
   });
 });

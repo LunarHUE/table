@@ -103,15 +103,21 @@ const api = (ctx: FeatureApiContext<"pagination", PaginationState, Options>): Pa
   };
 };
 
+const countData = (rows: readonly RowLike[]): number => rows.reduce((count, row) => (row.kind === "data" ? count + 1 : count), 0);
+
 const windowStage: RowStage<PaginationState, Options> = {
   phase: "window",
   reads: ["pagination"],
   // A page holds `pageSize` data rows. Detail rows ride along with the data
   // row above them and take no slot, so a row and its details never split
   // across pages. Detail rows above the first data row go on the first page.
+  // A page past the last one shows the last page, so rows going away never
+  // leave an empty page on screen. The state keeps its index.
   run: (rows, ctx) => {
-    const start = ctx.state.pageIndex * ctx.state.pageSize;
-    const end = start + ctx.state.pageSize;
+    const { pageSize } = ctx.state;
+    const pageIndex = clampPageIndex(ctx.state.pageIndex, Math.ceil(countData(rows) / pageSize));
+    const start = pageIndex * pageSize;
+    const end = start + pageSize;
     const page: RowLike[] = [];
     let seen = 0;
     let keep = start === 0;
@@ -130,8 +136,9 @@ const windowStage: RowStage<PaginationState, Options> = {
 /**
  * Client pagination: the window phase cuts the current page out of the rows
  * the table has. Pages count data rows only, and each data row keeps its
- * detail rows on its page. It adds nothing to the server request. A write that changes
- * the matching rows, such as a new filter, goes back to the first page.
+ * detail rows on its page. When the rows shrink past the current page, it
+ * shows the last page. It adds nothing to the server request. A write that
+ * changes the matching rows, such as a new filter, goes back to the first page.
  */
 export const pagination = /* @__PURE__ */ defineFeature({ name: "pagination", state: stateSeam, api, rowStage: windowStage });
 
@@ -163,23 +170,54 @@ export interface PaginationMeta {
 }
 
 /**
+ * The page shown for `pageIndex` when there are `pageCount` pages: the last
+ * page when `pageIndex` is past it, and the first when there are none.
+ */
+export function clampPageIndex(pageIndex: number, pageCount: number): number {
+  return Math.min(pageIndex, Math.max(0, pageCount - 1));
+}
+
+/**
  * Works out what a pager shows from the pagination state and how many rows
  * match in all. `pageCount` is `totalCount / pageSize` rounded up, and 0 when
- * `totalCount` is 0 or less. `canPrev` is true past the first page, even
- * when nothing matches, so a pager left on a page that emptied can go back.
- * `canNext` is true while a later page exists, so it is false when nothing
- * matches. `sizes` defaults to `[10, 25, 50, 100]`.
+ * `totalCount` is 0 or less. `canNext` is true while a later page exists, so
+ * it is false when nothing matches. `sizes` defaults to `[10, 25, 50, 100]`.
+ *
+ * With `clamp`, as for client `pagination()`, `pageIndex` is the page the
+ * rows show: the last page when the state is past it, and 0 when nothing
+ * matches. Without it, as for `remotePagination()`, `pageIndex` is the
+ * state's, since the server sent the rows for that page and the count may
+ * not have arrived yet. `canPrev` is true past the first page, even when
+ * nothing matches, so a pager left on a page that emptied can go back.
  */
-export function computePaginationMeta(state: PaginationState, totalCount: number, sizes: readonly number[] = defaultSizes): PaginationMeta {
+export function computePaginationMeta(
+  state: PaginationState,
+  totalCount: number,
+  sizes: readonly number[] = defaultSizes,
+  clamp = false,
+): PaginationMeta {
   const pageCount = totalCount <= 0 ? 0 : Math.ceil(totalCount / state.pageSize);
+  const pageIndex = clamp ? clampPageIndex(state.pageIndex, pageCount) : state.pageIndex;
   return {
-    pageIndex: state.pageIndex,
+    pageIndex,
     pageSize: state.pageSize,
     pageCount,
     totalCount,
-    canPrev: state.pageIndex > 0,
-    canNext: state.pageIndex + 1 < pageCount,
+    canPrev: pageIndex > 0,
+    canNext: pageIndex + 1 < pageCount,
     sizes,
     cursor: state.cursor,
   };
+}
+
+/**
+ * The page a pager's next (`step` 1) or previous (`step` -1) button goes to
+ * from `pageIndex`, or `pageIndex` itself when there is no such page. With
+ * `clamp`, it steps from the page shown, as `computePaginationMeta` works it
+ * out, so previous from a page past the end goes to the page before the last.
+ */
+export function stepPage(pageIndex: number, pageCount: number, step: 1 | -1, clamp = false): number {
+  const from = clamp ? clampPageIndex(pageIndex, pageCount) : pageIndex;
+  const to = from + step;
+  return to < 0 || (step === 1 && to >= pageCount) ? pageIndex : to;
 }
