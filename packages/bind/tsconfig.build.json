@@ -8,5 +8,5 @@
     "emitDeclarationOnly": true
   },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test-d.ts", "src/**/*.bench.ts", "src/bench"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.test-d.ts", "src/**/*.bench.ts", "src/bench", "src/fixtures"]
 }

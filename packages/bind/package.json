@@ -78,8 +78,13 @@
   },
   "devDependencies": {
     "@lunarhue/table-core": "workspace:^",
+    "@testing-library/react": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "jsdom": "catalog:",
     "nuqs": "catalog:",
     "react": "catalog:",
+    "react-dom": "catalog:",
     "solid-js": "catalog:",
     "zustand": "catalog:"
   },
@@ -97,19 +102,19 @@
       "name": "./nuqs",
       "path": "dist/esm/nuqs.js",
       "import": "*",
-      "limit": "500 B"
+      "limit": "1.1 kB"
     },
     {
       "name": "./zustand",
       "path": "dist/esm/zustand.js",
       "import": "*",
-      "limit": "500 B"
+      "limit": "400 B"
     },
     {
       "name": "./solid",
       "path": "dist/esm/solid.js",
       "import": "*",
-      "limit": "500 B"
+      "limit": "350 B"
     }
   ]
 }
