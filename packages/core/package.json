@@ -59,7 +59,7 @@
       "name": ".",
       "path": "dist/esm/index.js",
       "import": "*",
-      "limit": "7.2 kB"
+      "limit": "8 kB"
     },
     {
       "name": "sorting",
@@ -72,6 +72,24 @@
       "path": "dist/esm/index.js",
       "import": "{ remoteSorting }",
       "limit": "650 B"
+    },
+    {
+      "name": "{ filtering }",
+      "path": "dist/esm/index.js",
+      "import": "{ filtering }",
+      "limit": "780 B"
+    },
+    {
+      "name": "{ remoteFiltering }",
+      "path": "dist/esm/index.js",
+      "import": "{ remoteFiltering }",
+      "limit": "720 B"
+    },
+    {
+      "name": "{ createFilterDraft }",
+      "path": "dist/esm/index.js",
+      "import": "{ createFilterDraft }",
+      "limit": "440 B"
     },
     {
       "name": "./url",
