@@ -1,4 +1,5 @@
 import type { StateUpdater } from "../bindings.js";
+import type { RowLike } from "../contract.js";
 import { defineFeature, type FeatureApiContext, type FeatureStateSeam, type RowStage } from "../feature.js";
 
 // Pagination comes in two features with one name, so a table installs one or
@@ -105,15 +106,31 @@ const api = (ctx: FeatureApiContext<"pagination", PaginationState, Options>): Pa
 const windowStage: RowStage<PaginationState, Options> = {
   phase: "window",
   reads: ["pagination"],
+  // A page holds `pageSize` data rows. Detail rows ride along with the data
+  // row above them and take no slot, so a row and its details never split
+  // across pages. Detail rows above the first data row go on the first page.
   run: (rows, ctx) => {
     const start = ctx.state.pageIndex * ctx.state.pageSize;
-    return rows.slice(start, start + ctx.state.pageSize);
+    const end = start + ctx.state.pageSize;
+    const page: RowLike[] = [];
+    let seen = 0;
+    let keep = start === 0;
+    for (const row of rows) {
+      if (row.kind === "data") {
+        if (seen === end) break;
+        keep = seen >= start;
+        seen += 1;
+      }
+      if (keep) page.push(row);
+    }
+    return page;
   },
 };
 
 /**
  * Client pagination: the window phase cuts the current page out of the rows
- * the table has. It adds nothing to the server request. A write that changes
+ * the table has. Pages count data rows only, and each data row keeps its
+ * detail rows on its page. It adds nothing to the server request. A write that changes
  * the matching rows, such as a new filter, goes back to the first page.
  */
 export const pagination = /* @__PURE__ */ defineFeature({ name: "pagination", state: stateSeam, api, rowStage: windowStage });

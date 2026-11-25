@@ -44,7 +44,10 @@ export interface TableRowsOptions {
 /** The rows a table shows, with counts. */
 export interface TableRowsView<TRow> {
   readonly rows: readonly Row<TRow>[];
-  /** The rows left after filtering and sorting, before a window phase cut out a page. */
+  /**
+   * The data rows left after filtering and sorting, before a window phase cut
+   * out a page. Detail rows don't count.
+   */
   readonly matchingCount: number;
   /** `options.totalCount`, or `matchingCount` when the app gave none. */
   readonly totalCount: number;
@@ -90,6 +93,9 @@ interface Stage {
 const viewKeys = ["rows", "matchingCount", "totalCount", "pageCount", "isStale", "error", "isPlaceholder"] as const;
 
 const keyOf = (row: RowLike) => `${row.kind}\0${row.id}`;
+
+/** Counts data rows. Detail rows hang off a data row, so they aren't matches of their own. */
+const countData = (rows: readonly RowLike[]): number => rows.reduce((count, row) => (row.kind === "data" ? count + 1 : count), 0);
 
 /**
  * Makes the row pipeline for a table. `readSlice` reads a feature's state
@@ -190,7 +196,7 @@ export function createRowPipeline<TRow>(def: RowPipelineDef<TRow>, readSlice: (n
     let output: readonly RowLike[] = base;
     let matchingCount: number | undefined;
     for (const entry of stages) {
-      if (matchingCount === undefined && entry.phase >= windowPhase) matchingCount = output.length;
+      if (matchingCount === undefined && entry.phase >= windowPhase) matchingCount = countData(output);
       const state = readSlice(entry.name);
       const reads = entry.stage.reads ?? [];
       const deps = [output, columns, state, ...reads.map(readSlice)];
@@ -200,7 +206,7 @@ export function createRowPipeline<TRow>(def: RowPipelineDef<TRow>, readSlice: (n
       }
       output = entry.memo.output;
     }
-    matchingCount ??= output.length;
+    matchingCount ??= countData(output);
 
     if (output !== lastOutput) {
       const byKey = new Map<string, Row<TRow>>();
