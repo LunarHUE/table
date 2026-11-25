@@ -1,0 +1,37 @@
+name: Playwright browser
+description: Install one Playwright browser and its system libraries, with the browser cached.
+
+inputs:
+  browser:
+    description: chromium, firefox or webkit.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # Browser builds change with the Playwright version, so it keys the cache.
+    - id: version
+      shell: bash
+      run: echo "version=$(jq -r .version e2e/node_modules/@playwright/test/package.json)" >> "$GITHUB_OUTPUT"
+
+    - id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.version.outputs.version }}-${{ inputs.browser }}
+
+    # The cache holds the browser but not the apt packages it needs, so a hit
+    # still installs those.
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: e2e
+      env:
+        BROWSER: ${{ inputs.browser }}
+      run: bun x playwright install --with-deps "$BROWSER"
+
+    - if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      working-directory: e2e
+      env:
+        BROWSER: ${{ inputs.browser }}
+      run: bun x playwright install-deps "$BROWSER"
