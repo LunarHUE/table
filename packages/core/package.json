@@ -1,0 +1,71 @@
+{
+  "name": "@lunarhue/table-core",
+  "license": "MIT",
+  "version": "0.1.0",
+  "description": "The framework-free core of table.",
+  "keywords": ["table", "data-grid", "headless", "typescript"],
+  "homepage": "https://github.com/LunarHUE/table#readme",
+  "bugs": "https://github.com/LunarHUE/table/issues",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LunarHUE/table.git",
+    "directory": "packages/core"
+  },
+  "files": [
+    "dist",
+    "url"
+  ],
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "@lunarhue/source": "./src/index.ts",
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./url": {
+      "@lunarhue/source": "./src/url/index.ts",
+      "import": {
+        "types": "./dist/esm/url/index.d.ts",
+        "default": "./dist/esm/url/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/url/index.d.ts",
+        "default": "./dist/cjs/url/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json && tsc -p tsconfig.build.json --outDir dist/cjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "check:package": "publint --strict --pack npm && attw --pack .",
+    "size": "size-limit"
+  },
+  "size-limit": [
+    {
+      "name": ".",
+      "path": "dist/esm/index.js",
+      "import": "*",
+      "limit": "1 kB"
+    },
+    {
+      "name": "./url",
+      "path": "dist/esm/url/index.js",
+      "import": "*",
+      "limit": "1 kB"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "main": "../dist/cjs/nuqs.js",
+  "module": "../dist/esm/nuqs.js",
+  "types": "../dist/cjs/nuqs.d.ts"
+}

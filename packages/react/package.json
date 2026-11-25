@@ -1,0 +1,139 @@
+{
+  "name": "@lunarhue/table-react",
+  "license": "MIT",
+  "version": "0.1.0",
+  "description": "Headless tables for React.",
+  "keywords": ["table", "data-grid", "headless", "react", "react-hooks", "typescript"],
+  "homepage": "https://github.com/LunarHUE/table#readme",
+  "bugs": "https://github.com/LunarHUE/table/issues",
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LunarHUE/table.git",
+    "directory": "packages/react"
+  },
+  "files": [
+    "dist",
+    "a11y",
+    "mini",
+    "legacy"
+  ],
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "@lunarhue/source": "./src/index.ts",
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./a11y": {
+      "@lunarhue/source": "./src/a11y.ts",
+      "import": {
+        "types": "./dist/esm/a11y.d.ts",
+        "default": "./dist/esm/a11y.js"
+      },
+      "require": {
+        "types": "./dist/cjs/a11y.d.ts",
+        "default": "./dist/cjs/a11y.js"
+      }
+    },
+    "./mini": {
+      "@lunarhue/source": "./src/mini.ts",
+      "import": {
+        "types": "./dist/esm/mini.d.ts",
+        "default": "./dist/esm/mini.js"
+      },
+      "require": {
+        "types": "./dist/cjs/mini.d.ts",
+        "default": "./dist/cjs/mini.js"
+      }
+    },
+    "./legacy": {
+      "@lunarhue/source": "./src/legacy.ts",
+      "import": {
+        "types": "./dist/esm/legacy.d.ts",
+        "default": "./dist/esm/legacy.js"
+      },
+      "require": {
+        "types": "./dist/cjs/legacy.d.ts",
+        "default": "./dist/cjs/legacy.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "imports": {
+    "#lunarhue/react": {
+      "@lunarhue/source": {
+        "@lunarhue/react-legacy": "./src/legacy.ts",
+        "default": "./src/react18.ts"
+      },
+      "@lunarhue/react-legacy": {
+        "import": "./dist/esm/legacy.js",
+        "require": "./dist/cjs/legacy.js"
+      },
+      "import": "./dist/esm/react18.js",
+      "require": "./dist/cjs/react18.js"
+    }
+  },
+  "dependencies": {
+    "@lunarhue/table-core": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": ">=16.8"
+  },
+  "devDependencies": {
+    "@babel/core": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "babel-plugin-react-compiler": "catalog:",
+    "jsdom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && tsc -p tsconfig.build.json && tsdown -c tsdown.types.config.ts && rm -rf dist/types",
+    "typecheck": "tsc -p tsconfig.json",
+    "check:package": "publint --strict --pack npm && attw --pack .",
+    "size": "size-limit"
+  },
+  "size-limit": [
+    {
+      "name": ".",
+      "path": "dist/esm/index.js",
+      "import": "*",
+      "limit": "1 kB"
+    },
+    {
+      "name": "./a11y",
+      "path": "dist/esm/a11y.js",
+      "import": "*",
+      "limit": "1 kB"
+    },
+    {
+      "name": "./mini",
+      "path": "dist/esm/mini.js",
+      "import": "*",
+      "limit": "1 kB"
+    },
+    {
+      "name": "./legacy",
+      "path": "dist/esm/legacy.js",
+      "import": "*",
+      "limit": "1.5 kB"
+    }
+  ]
+}
