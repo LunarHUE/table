@@ -148,6 +148,22 @@ describe("createRowPipeline", () => {
     expect(compute(users, columns, { pageSize: 0 }).pageCount).toBeUndefined();
   });
 
+  it("counts data rows only as matching, not detail rows", () => {
+    const details = defineFeature({
+      name: "details",
+      state: { initial: null },
+      rowStage: {
+        phase: "flatten",
+        run: (rows) => rows.flatMap((row): RowLike[] => [row, { ...row, kind: "detail", id: `${row.id}:detail`, parentId: row.id }]),
+      },
+    })();
+    const page = defineFeature({ name: "page", state: { initial: null }, rowStage: { phase: "window", run: (rows) => rows.slice(0, 3) } })();
+    const { compute } = setup([details, page]);
+    const view = compute(users, columns, { pageSize: 2 });
+    expect(ids(view.rows)).toEqual(["a", "a:detail", "b"]);
+    expect(view).toMatchObject({ matchingCount: 4, totalCount: 4, pageCount: 2 });
+  });
+
   it("counts every row as matching without a window stage", () => {
     const { compute } = setup([]);
     expect(compute(users, columns).matchingCount).toBe(4);
@@ -183,6 +199,8 @@ describe("createRowPipeline", () => {
     expect(detail.parentId).toBe("b");
     expect(detail.original).toBe(users[1]);
     expect(rows[1]).toMatchObject({ canExpand: true, isExpanded: true });
+    // Without a window stage, the detail row still isn't a match.
+    expect(compute(users, columns).matchingCount).toBe(4);
 
     // The stage runs again with equal state and makes new objects; the rows stay the same objects.
     state.set("expand", ["b"]);

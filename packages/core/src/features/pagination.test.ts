@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ExternalGroupBinding } from "../bindings.js";
+import type { RowLike } from "../contract.js";
 import { defineTable } from "../define-table.js";
+import { defineFeature } from "../feature.js";
 import { filtering, sorting, users, type User } from "../fixtures/table.js";
 import { createTableStore } from "../store.js";
 import { computePaginationMeta, pagination, remotePagination, type PaginationOptions, type PaginationState } from "./pagination.js";
@@ -19,6 +21,52 @@ const serverTable = (options?: PaginationOptions) =>
   defineTable<User>()({ getRowId: (row) => row.id, columns, features: [sorting(), filtering(), remotePagination(options)] });
 
 const ids = (view: { readonly rows: readonly { readonly id: string }[] }) => view.rows.map((row) => row.id);
+
+const detail = (row: RowLike, n: number): RowLike => ({
+  kind: "detail",
+  id: `${row.id}:detail${n}`,
+  index: row.index,
+  depth: row.depth + 1,
+  parentId: row.id,
+  original: row.original,
+});
+
+const noneExpanded: Readonly<Record<string, number>> = {};
+
+/** A flatten stage that puts as many detail rows under a row as its state says. */
+const expanding = defineFeature({
+  name: "expanding",
+  state: { initial: noneExpanded },
+  rowStage: {
+    phase: "flatten",
+    run: (rows, ctx) =>
+      rows.flatMap((row) => [row, ...Array.from({ length: ctx.state[row.id] ?? 0 }, (_, n) => detail(row, n + 1))]),
+  },
+});
+
+/** A flatten stage that puts two child data rows, the first with a detail row, under "a", and a detail row above every row. */
+const tree = defineFeature({
+  name: "tree",
+  state: { initial: null },
+  rowStage: {
+    phase: "flatten",
+    run: (rows) => {
+      const first = rows[0];
+      if (!first) return rows;
+      const child = (n: number): RowLike => ({ kind: "data", id: `a.${n}`, index: n - 1, depth: 1, parentId: "a", original: first.original });
+      const orphan: RowLike = { ...detail(first, 0), id: "orphan", parentId: null };
+      return rows.flatMap((row) => (row.id === "a" ? [orphan, row, child(1), detail(child(1), 1), child(2)] : [row]));
+    },
+  },
+});
+
+const detailTable = (pageSize: number, expanded: Readonly<Record<string, number>>, pageIndex = 0) =>
+  defineTable<User>()({
+    getRowId: (row) => row.id,
+    columns,
+    features: [sorting(), filtering(), expanding(), pagination({ sizes: [pageSize] })],
+    initialState: { expanding: expanded, pagination: { pageIndex, pageSize } },
+  });
 
 describe("pagination", () => {
   it("starts on page 0 with the first allowed size, or 10", () => {
@@ -113,6 +161,51 @@ describe("pagination", () => {
     const store = createTableStore(clientTable());
     expect(store.getRequest()).not.toHaveProperty("pagination");
     expect(store.getRequestKey()).not.toContain("pagination");
+  });
+});
+
+describe("pagination with detail rows", () => {
+  it("keeps a row's detail rows on its page without taking slots", () => {
+    const first = createTableStore(detailTable(2, { b: 2 })).computeRows(users, { pageSize: 2 });
+    expect(ids(first)).toEqual(["a", "b", "b:detail1", "b:detail2"]);
+    expect(first).toMatchObject({ matchingCount: 4, totalCount: 4, pageCount: 2 });
+    const second = createTableStore(detailTable(2, { b: 2 }, 1)).computeRows(users, { pageSize: 2 });
+    expect(ids(second)).toEqual(["c", "d"]);
+  });
+
+  it("keeps detail rows with the row at the end of a page and the last row", () => {
+    const store = createTableStore(detailTable(3, { c: 1, d: 1 }));
+    expect(ids(store.computeRows(users))).toEqual(["a", "b", "c", "c:detail1"]);
+    store.pagination.setPage(1);
+    expect(ids(store.computeRows(users))).toEqual(["d", "d:detail1"]);
+    store.pagination.setPage(2);
+    expect(store.computeRows(users).rows).toEqual([]);
+  });
+
+  it("counts the same matching rows and pages whether rows are expanded or not", () => {
+    const collapsed = createTableStore(detailTable(3, {}));
+    const expanded = createTableStore(detailTable(3, { a: 1, b: 2, c: 3, d: 4 }));
+    const view = expanded.computeRows(users, { pageSize: 3 });
+    expect(ids(view)).toEqual(["a", "a:detail1", "b", "b:detail1", "b:detail2", "c", "c:detail1", "c:detail2", "c:detail3"]);
+    expect(view).toMatchObject({ matchingCount: 4, totalCount: 4, pageCount: 2 });
+    expect(collapsed.computeRows(users, { pageSize: 3 })).toMatchObject({ matchingCount: 4, totalCount: 4, pageCount: 2 });
+    expect(computePaginationMeta(expanded.getFeatureState("pagination"), view.totalCount).pageCount).toBe(2);
+  });
+
+  it("counts child data rows as rows and keeps detail rows above the first row on the first page", () => {
+    const def = defineTable<User>()({
+      getRowId: (row) => row.id,
+      columns,
+      features: [tree(), pagination({ sizes: [2] })],
+    });
+    const store = createTableStore(def);
+    const first = store.computeRows(users, { pageSize: 2 });
+    expect(ids(first)).toEqual(["orphan", "a", "a.1", "a.1:detail1"]);
+    expect(first).toMatchObject({ matchingCount: 6, totalCount: 6, pageCount: 3 });
+    store.pagination.setPage(1);
+    expect(ids(store.computeRows(users))).toEqual(["a.2", "b"]);
+    store.pagination.setPage(2);
+    expect(ids(store.computeRows(users))).toEqual(["c", "d"]);
   });
 });
 
