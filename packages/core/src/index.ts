@@ -1,7 +1,8 @@
 // The framework-free core: reactive cells, keyed stores for rows, columns
 // and cells, diagnostics, the bindings that let apps own state slices,
-// `defineFeature`, which every table feature is made with, and
-// `defineTable` with its column helpers.
+// `defineFeature`, which every table feature is made with, `defineTable`
+// with its column helpers, the row and column pipelines, and
+// `createTableStore`, which runs a table.
 
 /** The package's name, as published. */
 export const coreName = "@lunarhue/table-core";
@@ -116,3 +117,29 @@ export {
   type TableOf,
   type WithColumnIds,
 } from "./define-table.js";
+export {
+  createRowPipeline,
+  type DataRow,
+  type DetailRow,
+  type Row,
+  type RowPipeline,
+  type RowPipelineDef,
+  type TableRowsOptions,
+  type TableRowsView,
+} from "./row-pipeline.js";
+export {
+  computeColumns,
+  computeHeaderGroups,
+  type ColumnPipelineResult,
+  type ColumnStep,
+  type ColumnView,
+  type HeaderCell,
+  type HeaderGroup,
+} from "./column-pipeline.js";
+export {
+  createTableStore,
+  stableStringify,
+  type TableStore,
+  type TableStoreMethods,
+  type TableStoreOptions,
+} from "./store.js";
