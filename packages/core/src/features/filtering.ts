@@ -188,9 +188,22 @@ function filteringApi<TFilters extends object>(
   options: FilteringBaseOptions<TFilters> | undefined,
 ): FilteringApi<TFilters> {
   const isEqual = options?.isEqual ?? sameValue;
+  // The filters this tick's last write leads to, and the state it read. A
+  // controlled slice keeps reading the last render until React applies the
+  // updaters, so while the state is still that object, the next edit in the
+  // same handler checks against the last write's result instead.
+  let pending: { readonly base: TFilters; readonly value: TFilters } | undefined;
   const apply = (fn: (prev: TFilters) => TFilters) => {
-    const current = ctx.getState();
-    if (isEqual(current, fn(current))) return;
+    const base = ctx.getState();
+    const current = pending?.base === base ? pending.value : base;
+    const wanted = fn(current);
+    if (isEqual(current, wanted)) return;
+    if (!pending) {
+      void Promise.resolve().then(() => {
+        pending = undefined;
+      });
+    }
+    pending = { base, value: wanted };
     ctx.setState((prev) => {
       const next = fn(prev);
       return isEqual(prev, next) ? prev : next;

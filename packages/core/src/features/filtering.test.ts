@@ -321,4 +321,45 @@ describe("createFilterDraft", () => {
     for (const fn of queued) controlled = fn(controlled);
     expect(controlled).toEqual({ search: "alice", role: "admin", tags: ["vip"] });
   });
+
+  it("lands an edit that undoes the one before it on a controlled slice", () => {
+    let controlled: UserFilters = { search: "" };
+    const queued: ((prev: UserFilters) => UserFilters)[] = [];
+    const def = defineTable<User>()({
+      getRowId: (u) => u.id,
+      columns: (col) => [col.key("name")],
+      features: [remoteFiltering<UserFilters>()],
+      initialState: { filtering: { search: "" } },
+    });
+    const store = createTableStore(def, {
+      bind: { filtering: { kind: "controlled", state: controlled, onStateChange: (updater) => queued.push(updater) } },
+    });
+    store.filtering.set("search", "alice");
+    store.filtering.set("search", "");
+    store.filtering.set("role", "admin");
+    store.filtering.unset("role");
+    for (const fn of queued) controlled = fn(controlled);
+    expect(controlled).toEqual({ search: "" });
+  });
+
+  it("checks against the store again once the tick ends", async () => {
+    let controlled: UserFilters = { search: "" };
+    const queued: ((prev: UserFilters) => UserFilters)[] = [];
+    const def = defineTable<User>()({
+      getRowId: (u) => u.id,
+      columns: (col) => [col.key("name")],
+      features: [remoteFiltering<UserFilters>()],
+      initialState: { filtering: { search: "" } },
+    });
+    const store = createTableStore(def, {
+      bind: { filtering: { kind: "controlled", state: controlled, onStateChange: (updater) => queued.push(updater) } },
+    });
+    // The owner drops this write and keeps its state.
+    store.filtering.set("search", "alice");
+    await Promise.resolve();
+    store.filtering.set("search", "alice");
+    expect(queued).toHaveLength(2);
+    for (const fn of queued) controlled = fn(controlled);
+    expect(controlled).toEqual({ search: "alice" });
+  });
 });
