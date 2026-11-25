@@ -1,0 +1,96 @@
+name: Size report
+
+# Measures a pull request's bundle sizes against its merge base and posts the
+# difference as one comment, edited on each push. The merge base, not the tip
+# of the base branch, so a stacked pull request shows only its own change.
+# Every run writes the report to its job summary too. Forks get only the
+# summary, since their token can't comment. CI enforces the limits; this only
+# reports.
+on:
+  pull_request:
+
+permissions: {}
+
+# A newer push to the same pull request replaces a report in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write # the size comment
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The docs-only check and the base worktree need the merge base.
+          fetch-depth: 0
+          persist-credentials: false
+      - id: setup
+        uses: ./.github/actions/setup
+      - if: steps.setup.outputs.docs-only == 'true'
+        run: echo "Only docs changed, so there are no sizes to report."
+
+      - if: steps.setup.outputs.docs-only != 'true'
+        run: bun run build
+      - if: steps.setup.outputs.docs-only != 'true'
+        run: bun scripts/size-report.ts measure > /tmp/size-head.json
+
+      # The base runs this commit's size-report.ts against its own checkout,
+      # so it needs neither the script nor size:tables --json. With the same
+      # lockfile it borrows the installed packages: the store at the root is
+      # linked, and each workspace's node_modules is copied, since those hold
+      # relative links to sibling packages that must land in the base's tree.
+      # A failed base still gets a report, of the head's sizes alone.
+      - if: steps.setup.outputs.docs-only != 'true'
+        continue-on-error: true
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          merge_base=$(git merge-base "$BASE" HEAD)
+          echo "Measuring the merge base $merge_base."
+          git worktree add --detach /tmp/size-base "$merge_base"
+          if git diff --quiet "$merge_base" HEAD -- bun.lock; then
+            ln -s "$PWD/node_modules" /tmp/size-base/node_modules
+            find . -name node_modules -type d -prune -not -path ./node_modules | while read -r dir; do
+              if [ -d "/tmp/size-base/$(dirname "$dir")" ]; then cp -a "$dir" "/tmp/size-base/$dir"; fi
+            done
+          else
+            (cd /tmp/size-base && bun install --frozen-lockfile)
+          fi
+          (cd /tmp/size-base && bun run build)
+          bun scripts/size-report.ts measure --root /tmp/size-base > /tmp/size-base.json.partial
+          mv /tmp/size-base.json.partial /tmp/size-base.json
+      - if: always() && steps.setup.outputs.docs-only != 'true'
+        run: git worktree remove --force /tmp/size-base || true
+
+      - if: steps.setup.outputs.docs-only != 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bun scripts/size-report.ts compare /tmp/size-base.json /tmp/size-head.json --base "$BASE_REF" --sha "$SHA" > /tmp/size-report.md
+          cat /tmp/size-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      # One comment per pull request, found again by its marker and edited on
+      # each push. A failed comment doesn't fail the run.
+      - if: >-
+          steps.setup.outputs.docs-only != 'true'
+          && github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          marker="<!-- size-report -->"
+          body=$(cat /tmp/size-report.md)
+          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
+            --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\"))) | .id" | sed -n 1p)
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -f body="$body" > /dev/null
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
