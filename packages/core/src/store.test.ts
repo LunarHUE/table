@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ControlledSliceBinding, ExternalGroupBinding, ExternalSliceBinding } from "./bindings.js";
+import type { ControlledBinding, ExternalGroupBinding, ExternalBinding } from "./bindings.js";
 import { defineTable, type StateOf } from "./define-table.js";
 import { makeDef, seen, stageRuns, users, type PageState, type User } from "./fixtures/table.js";
 import { problem } from "./problem.js";
@@ -22,7 +22,7 @@ function external<T>(value: T, server?: T) {
       };
     }),
     ...(server === undefined ? {} : { getServerSnapshot: () => server }),
-  } satisfies ExternalSliceBinding<T>;
+  } satisfies ExternalBinding<T>;
   const push = (next: T) => {
     current = next;
     listeners.forEach((listener) => listener());
@@ -302,7 +302,7 @@ describe("createTableStore", () => {
   describe("updateOptions", () => {
     it("keeps the store while omitColumns, meta and controlled slices change, and wakes listeners on flush", () => {
       const onStateChange = vi.fn<(updater: (prev: readonly SortEntry[]) => readonly SortEntry[]) => void>();
-      const controlled = (state: readonly SortEntry[]): ControlledSliceBinding<readonly SortEntry[]> => ({
+      const controlled = (state: readonly SortEntry[]): ControlledBinding<readonly SortEntry[]> => ({
         kind: "controlled",
         state,
         onStateChange,

@@ -1,11 +1,11 @@
-import type { AnyTableDef, ControlledGroupBinding, SliceBindings } from "@lunarhue/table-core";
+import type { AnyTableDef, ControlledGroupBinding, FeatureBindings } from "@lunarhue/table-core";
 import type { RawParam, TableUrl, UrlSchema, UrlStateOf } from "@lunarhue/table-core/url";
 import { createMultiParser, debounce, throttle, useQueryStates, type Options } from "nuqs";
 import { useCallback, useEffect, useMemo, useRef, useState, type TransitionStartFunction } from "react";
 
 // The declarations bundle core's types, so a consumer's emitted declarations
 // can name the types useNuqsBinding returns only through this entry.
-export type { AnyTableDef, ControlledGroupBinding, SliceBindings, TableUrl, UrlSchema, UrlStateOf };
+export type { AnyTableDef, ControlledGroupBinding, FeatureBindings, TableUrl, UrlSchema, UrlStateOf };
 
 // nuqs holds each query key's raw values, and the table URL does all the
 // reading and writing: `parse` turns the raw query into slices, with the

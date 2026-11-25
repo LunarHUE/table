@@ -1,4 +1,4 @@
-import { createSliceCoordinator, type SliceBindings } from "./bindings.js";
+import { createStateCoordinator, type FeatureBindings } from "./bindings.js";
 import { cellKey, createCell, createCells, createKeyedCells, type KeyedStore } from "./cells.js";
 import { computeColumns, type ColumnPipelineResult, type ColumnStep } from "./column-pipeline.js";
 import type { ColumnInfo } from "./contract.js";
@@ -39,8 +39,8 @@ export const stableStringify = (value: unknown): string => encode(value) ?? "nul
 
 /** What `createTableStore` and `updateOptions` take. */
 export interface TableStoreOptions<TDef extends AnyTableDef> {
-  /** The owners of the slices the app keeps, by feature name. */
-  readonly bind?: SliceBindings<StateOf<TDef> & object>;
+  /** The owners of the feature state the app keeps, by feature name. */
+  readonly bind?: FeatureBindings<StateOf<TDef> & object>;
   /** Columns this user may not see, as for permissions. No feature can show them. */
   readonly omitColumns?: ReadonlySet<string> | readonly string[];
   readonly meta?: Readonly<Record<string, unknown>>;
@@ -178,7 +178,7 @@ function run(def: AnyTableDef, options: Options) {
 
   const cells = createCells();
   const [replace, listen] = cells;
-  const coordinator = createSliceCoordinator<Values>({
+  const coordinator = createStateCoordinator<Values>({
     initial,
     bindings: options.bind ?? {},
     cells,

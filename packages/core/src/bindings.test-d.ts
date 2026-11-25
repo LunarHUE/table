@@ -1,11 +1,11 @@
 import { expectTypeOf, it } from "vitest";
 import {
-  createSliceCoordinator,
-  type ControlledSliceBinding,
+  createStateCoordinator,
+  type ControlledBinding,
   type ExternalGroupBinding,
-  type ExternalSliceBinding,
+  type ExternalBinding,
   type GroupBinding,
-  type SliceBindings,
+  type FeatureBindings,
   type StateCoordinator,
   type StateUpdater,
 } from "./bindings.js";
@@ -25,7 +25,7 @@ it("accepts a value or an updater", () => {
 });
 
 it("types each slice's snapshot", () => {
-  const table = createSliceCoordinator({ initial });
+  const table = createStateCoordinator({ initial });
   expectTypeOf(table).toEqualTypeOf<StateCoordinator<State>>();
   expectTypeOf(table.getSnapshot("pagination")).toEqualTypeOf<State["pagination"]>();
   expectTypeOf(table.getServerSnapshot("filter")).toEqualTypeOf<string>();
@@ -39,18 +39,18 @@ it("types each slice's snapshot", () => {
 });
 
 it("checks a single binding against its slice", () => {
-  const filter: ExternalSliceBinding<string> = { get: () => "", set: () => {}, subscribe: () => () => {} };
-  const sorting: ControlledSliceBinding<readonly string[]> = { kind: "controlled", state: [], onStateChange: () => {} };
-  expectTypeOf({ filter, sorting }).toExtend<SliceBindings<State>>();
-  createSliceCoordinator({ initial, bindings: { filter, sorting } });
+  const filter: ExternalBinding<string> = { get: () => "", set: () => {}, subscribe: () => () => {} };
+  const sorting: ControlledBinding<readonly string[]> = { kind: "controlled", state: [], onStateChange: () => {} };
+  expectTypeOf({ filter, sorting }).toExtend<FeatureBindings<State>>();
+  createStateCoordinator({ initial, bindings: { filter, sorting } });
   // @ts-expect-error filter is a string, not a list
-  createSliceCoordinator({ initial, bindings: { filter: sorting } });
+  createStateCoordinator({ initial, bindings: { filter: sorting } });
 });
 
 it("lets a React setState be onStateChange", () => {
   type SetState<T> = (value: T | ((prev: T) => T)) => void;
-  expectTypeOf<SetState<string>>().toExtend<ControlledSliceBinding<string>["onStateChange"]>();
-  expectTypeOf<ControlledSliceBinding<string>["onStateChange"]>().parameter(0).toEqualTypeOf<(prev: string) => string>();
+  expectTypeOf<SetState<string>>().toExtend<ControlledBinding<string>["onStateChange"]>();
+  expectTypeOf<ControlledBinding<string>["onStateChange"]>().parameter(0).toEqualTypeOf<(prev: string) => string>();
 });
 
 it("lets one group own several slices", () => {
@@ -62,10 +62,10 @@ it("lets one group own several slices", () => {
     subscribe: () => () => {},
   };
   expectTypeOf(url).toExtend<GroupBinding<Url>>();
-  const bindings: SliceBindings<State> = { filter: url, pagination: url };
-  createSliceCoordinator({ initial, bindings });
+  const bindings: FeatureBindings<State> = { filter: url, pagination: url };
+  createStateCoordinator({ initial, bindings });
   // @ts-expect-error the group has no sorting slice
-  createSliceCoordinator({ initial, bindings: { sorting: url } });
+  createStateCoordinator({ initial, bindings: { sorting: url } });
 
   const wrong: ExternalGroupBinding<{ filter: number }> = {
     kind: "group",
@@ -74,5 +74,5 @@ it("lets one group own several slices", () => {
     subscribe: () => () => {},
   };
   // @ts-expect-error the group's filter is a number
-  createSliceCoordinator({ initial, bindings: { filter: wrong } });
+  createStateCoordinator({ initial, bindings: { filter: wrong } });
 });

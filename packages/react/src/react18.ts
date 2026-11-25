@@ -9,7 +9,7 @@ declare const process: { readonly env: { readonly NODE_ENV?: string } };
 
 // Read through a loosely typed object, not as named imports, so on React 17
 // the app fails with this module's error and not the bundler's missing export.
-const hooks: Partial<Pick<typeof React, "useId" | "useSyncExternalStore">> = React;
+const hooks: Partial<Pick<typeof React, "useId" | "useSyncExternalStore" | "useTransition">> = React;
 
 if (typeof process !== "undefined" && process.env.NODE_ENV !== "production" && !hooks.useSyncExternalStore) {
   throw new Error(
@@ -22,3 +22,6 @@ export const useSyncExternalStore = hooks.useSyncExternalStore as UseSyncExterna
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion
 export const useId = hooks.useId as () => string;
+
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion
+export const useTransition = hooks.useTransition as () => readonly [boolean, (fn: () => void) => void];

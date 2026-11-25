@@ -5,11 +5,11 @@ import { problem } from "./problem.js";
 export type StateUpdater<T> = T | ((prev: T) => T);
 
 /**
- * A slice kept in a store the app owns: Zustand, a Solid signal, local
+ * Feature state kept in a store the app owns: Zustand, a Solid signal, local
  * storage, anything with get, set and subscribe. `get` must return the new
  * value as soon as `set` returns.
  */
-export interface ExternalSliceBinding<T> {
+export interface ExternalBinding<T> {
   readonly kind?: "external";
   /** Returns the value now. */
   readonly get: () => T;
@@ -22,90 +22,137 @@ export interface ExternalSliceBinding<T> {
 }
 
 /**
- * A slice a framework component owns, as React's `value` and `onChange`
+ * Feature state a framework component owns, as React's `value` and `onChange`
  * props do. `onStateChange` always gets a function of the previous value, so
  * two commands in one event handler both land, as two `setState(prev => ...)`
  * calls do.
  */
-export interface ControlledSliceBinding<T> {
+export interface ControlledBinding<T> {
   readonly kind: "controlled";
   readonly state: T;
   readonly onStateChange: (updater: (prev: T) => T) => void;
 }
 
-/** How one slice is owned outside the table. A slice with no binding lives in the table. */
-export type SliceBinding<T> = ExternalSliceBinding<T> | ControlledSliceBinding<T>;
+/** How one feature's state is owned outside the table. A feature with no binding lives in the table. */
+export type FeatureBinding<T> = ExternalBinding<T> | ControlledBinding<T>;
 
 /**
- * Several slices in one external store, such as the URL. Pass the same
- * object for each slice it owns. A patch that changes several of them calls
- * `set` once, with all of them.
+ * Several features in one external store, such as the URL. Pass the same
+ * object for each feature it owns (or build it with `bindGroup`). A patch
+ * that changes several of them calls `set` once, with all of them.
  */
-export interface ExternalGroupBinding<TSlices extends object> {
+export interface ExternalGroupBinding<TState extends object> {
   readonly kind: "group";
-  get(this: void): TSlices;
-  getServerSnapshot?(this: void): TSlices;
-  /** Takes every slice in the group, changed or not. */
-  set(this: void, next: TSlices): void;
+  get(this: void): TState;
+  getServerSnapshot?(this: void): TState;
+  /** Takes every feature in the group, changed or not. */
+  set(this: void, next: TState): void;
   subscribe(this: void, listener: () => void): () => void;
 }
 
-/** Several slices one component owns, changed together through one `onStateChange` call. */
-export interface ControlledGroupBinding<TSlices extends object> {
+/** Several features one component owns, changed together through one `onStateChange` call. */
+export interface ControlledGroupBinding<TState extends object> {
   readonly kind: "controlled-group";
-  readonly state: TSlices;
-  onStateChange(this: void, updater: (prev: TSlices) => TSlices): void;
+  readonly state: TState;
+  onStateChange(this: void, updater: (prev: TState) => TState): void;
 }
 
-/** One owner for several slices. */
-export type GroupBinding<TSlices extends object> = ExternalGroupBinding<TSlices> | ControlledGroupBinding<TSlices>;
+/** One owner for several features. */
+export type GroupBinding<TState extends object> = ExternalGroupBinding<TState> | ControlledGroupBinding<TState>;
+
+/** Input to `bindGroup` for a controlled group binding. */
+export interface ControlledGroupInput<TState extends object> {
+  readonly state: TState;
+  onStateChange(this: void, updater: (prev: TState) => TState): void;
+}
+
+/** Input to `bindGroup` for an external group binding. */
+export interface ExternalGroupInput<TState extends object> {
+  get(this: void): TState;
+  getServerSnapshot?(this: void): TState;
+  set(this: void, next: TState): void;
+  subscribe(this: void, listener: () => void): () => void;
+}
 
 /**
- * The owner of each slice that the table doesn't keep. A group binding
- * appears under each slice it owns, and its value has at least those slices.
+ * Binds several features to one shared owner (controlled or external),
+ * returning a `FeatureBindings` map you can pass directly to `bind` or
+ * spread alongside other owners.
  */
-export type SliceBindings<TState extends object> = {
-  readonly [K in keyof TState]?: SliceBinding<TState[K]> | GroupBinding<{ readonly [P in K]: TState[P] }>;
+export function bindGroup<const TKeys extends readonly (keyof TState & string)[], TState extends object>(
+  features: TKeys,
+  binding: ControlledGroupInput<TState>,
+): { readonly [K in TKeys[number]]: ControlledGroupBinding<TState> };
+export function bindGroup<const TKeys extends readonly (keyof TState & string)[], TState extends object>(
+  features: TKeys,
+  binding: ExternalGroupInput<TState>,
+): { readonly [K in TKeys[number]]: ExternalGroupBinding<TState> };
+export function bindGroup<const TKeys extends readonly string[], TState extends object>(
+  features: TKeys,
+  binding: ControlledGroupInput<TState> | ExternalGroupInput<TState>,
+): Readonly<Record<string, GroupBinding<TState>>> {
+  const group: GroupBinding<TState> =
+    "onStateChange" in binding
+      ? { kind: "controlled-group", state: binding.state, onStateChange: binding.onStateChange }
+      : {
+          kind: "group",
+          get: binding.get,
+          ...(binding.getServerSnapshot ? { getServerSnapshot: binding.getServerSnapshot } : {}),
+          set: binding.set,
+          subscribe: binding.subscribe,
+        };
+  const out: Record<string, GroupBinding<TState>> = {};
+  for (const name of features) out[name] = group;
+  return out;
+}
+
+/**
+ * The owner of each feature's state that the table doesn't keep. A group
+ * binding appears under each feature it owns, and its value has at least
+ * those features.
+ */
+export type FeatureBindings<TState extends object> = {
+  readonly [K in keyof TState]?: FeatureBinding<TState[K]> | GroupBinding<{ readonly [P in K]: TState[P] }>;
 };
 
-/** Changes to some slices, applied together. */
-export type SlicePatch<TState extends object> = { readonly [K in keyof TState]?: StateUpdater<TState[K]> };
+/** Changes to some features' state, applied together. */
+export type StatePatch<TState extends object> = { readonly [K in keyof TState]?: StateUpdater<TState[K]> };
 
-/** What `createSliceCoordinator` takes. */
+/** What `createStateCoordinator` takes. */
 export interface CoordinatorOptions<TState extends object> {
-  /** Every slice's starting value. Slices with a binding read their owner instead. */
+  /** Every feature's starting value. Features with a binding read their owner instead. */
   readonly initial: TState;
-  readonly bindings?: SliceBindings<TState>;
-  /** The cells to keep slice snapshots in, so the coordinator shares batches with the rest of a table. */
+  readonly bindings?: FeatureBindings<TState>;
+  /** The cells to keep feature snapshots in, so the coordinator shares batches with the rest of a table. */
   readonly cells?: Cells;
 }
 
-/** A table's state, slice by slice, whoever owns each one. */
+/** A table's state, feature by feature, whoever owns each one. */
 export interface StateCoordinator<TState extends object> {
-  readonly getSnapshot: <K extends keyof TState>(slice: K) => TState[K];
-  readonly getServerSnapshot: <K extends keyof TState>(slice: K) => TState[K];
+  readonly getSnapshot: <K extends keyof TState>(feature: K) => TState[K];
+  readonly getServerSnapshot: <K extends keyof TState>(feature: K) => TState[K];
   /**
-   * Calls `listener` when the slice changes. The first listener subscribes
+   * Calls `listener` when the feature changes. The first listener subscribes
    * to the external owners and the last one to leave unsubscribes from them.
    */
-  readonly subscribe: (slice: keyof TState, listener: () => void) => () => void;
+  readonly subscribe: (feature: keyof TState, listener: () => void) => () => void;
   /**
-   * Applies changes to several slices at once. Table slices change in one
-   * batch, and each owner hears once, however many of its slices changed.
+   * Applies changes to several features at once. Table features change in one
+   * batch, and each owner hears once, however many of its features changed.
    */
-  readonly applyPatch: (patch: SlicePatch<TState>) => void;
+  readonly applyPatch: (patch: StatePatch<TState>) => void;
   /**
-   * Takes the bindings from a new render, for the controlled slices. It
+   * Takes the bindings from a new render, for the controlled features. It
    * wakes no listeners, so it is safe to call during render. Call `flush`
    * once the render commits.
    */
-  readonly updateControlled: (bindings: SliceBindings<TState>) => void;
+  readonly updateControlled: (bindings: FeatureBindings<TState>) => void;
   readonly flush: () => void;
   readonly batch: <T>(fn: () => T) => T;
 }
 
 type Values = Readonly<Record<PropertyKey, unknown>>;
-type Binding = SliceBinding<unknown> | GroupBinding<Values>;
+type Binding = FeatureBinding<unknown> | GroupBinding<Values>;
 type Bindings = Readonly<Record<string, Binding | undefined>>;
 type Entries = readonly (readonly [string, unknown])[];
 
@@ -149,7 +196,7 @@ const merge = (prev: Values, entries: Entries): Values => {
  * Makes the coordinator for a table's state. It does nothing to the owners
  * until something subscribes or a patch arrives.
  */
-export function createSliceCoordinator<TState extends object>(
+export function createStateCoordinator<TState extends object>(
   options: CoordinatorOptions<TState>,
 ): StateCoordinator<TState> {
   // The work is the same for every slice, so it runs on erased types. The

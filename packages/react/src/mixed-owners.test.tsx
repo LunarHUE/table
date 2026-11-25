@@ -15,7 +15,7 @@ import {
   useVisibleColumns,
   visibility,
   type ControlledGroupBinding,
-  type ExternalSliceBinding,
+  type ExternalBinding,
   type StateOf,
   type TableStore,
 } from "./index.js";
@@ -72,7 +72,7 @@ function visibilityStore() {
   let value: State["visibility"] = { hidden: [] };
   const listeners = new Set<() => void>();
   const writes: State["visibility"][] = [];
-  const binding: ExternalSliceBinding<State["visibility"]> = {
+  const binding: ExternalBinding<State["visibility"]> = {
     get: () => value,
     set: (next) => {
       value = next;

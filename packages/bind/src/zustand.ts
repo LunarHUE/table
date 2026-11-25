@@ -1,8 +1,8 @@
-import type { ExternalGroupBinding, ExternalSliceBinding } from "@lunarhue/table-core";
+import type { ExternalBinding, ExternalGroupBinding } from "@lunarhue/table-core";
 
 // The declarations bundle core's types, so a consumer's emitted declarations
 // can name the types these functions return only through this entry.
-export type { ExternalGroupBinding, ExternalSliceBinding };
+export type { ExternalBinding, ExternalGroupBinding };
 
 /**
  * The part of a Zustand store the binding uses. The hook `create` returns
@@ -43,7 +43,7 @@ function connect<S, T>(
   store: ZustandStore<S>,
   { select, update, isEqual = Object.is, getServerSnapshot }: ZustandSliceOptions<S, T>,
   replace?: boolean,
-): ExternalSliceBinding<T> {
+): ExternalBinding<T> {
   // The slice `get` last returned. The table compares slices by reference,
   // so an equal slice hands back this one and doesn't count as a change.
   let last = select(store.getState());
@@ -68,13 +68,13 @@ function connect<S, T>(
  * useTable(usersTable, { bind: { sorting: zustand(store, { select: (s) => s.sorting, update: (sorting) => ({ sorting }) }) } });
  * ```
  */
-export function zustand<S, T>(store: ZustandStore<S>, options: ZustandSliceOptions<S, T>): ExternalSliceBinding<T>;
+export function zustand<S, T>(store: ZustandStore<S>, options: ZustandSliceOptions<S, T>): ExternalBinding<T>;
 /**
  * Binds a table slice to a Zustand store's whole state. A table write
  * replaces the state, so give the store no actions, or bind part of it.
  */
-export function zustand<S>(store: ZustandStore<S>): ExternalSliceBinding<S>;
-export function zustand<S>(store: ZustandStore<S>, options?: ZustandSliceOptions<S, S>): ExternalSliceBinding<S> {
+export function zustand<S>(store: ZustandStore<S>): ExternalBinding<S>;
+export function zustand<S>(store: ZustandStore<S>, options?: ZustandSliceOptions<S, S>): ExternalBinding<S> {
   return options ? connect(store, options) : connect(store, { select: (state) => state, update: (value) => value }, true);
 }
 

@@ -4,6 +4,11 @@
 // so an app imports everything from this package.
 
 export * from "@lunarhue/table-core";
+export {
+  createTableBinding,
+  type CreateTableBindingOptions,
+  type SolidTableBindingResult,
+} from "./binding.js";
 export type { AnyTable, FeatureKey, Key } from "./store.js";
 export {
   createAllColumns,
