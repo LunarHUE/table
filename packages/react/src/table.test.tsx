@@ -16,6 +16,9 @@ import {
   useTable,
   useTableRequest,
   useTableRows,
+  useVisibleColumns,
+  visibility,
+  selection,
   type StateOf,
   type TableStore,
 } from "./index.js";
@@ -151,7 +154,50 @@ function Probes() {
   );
 }
 
+const shownTable = defineTable<User>()({
+  getRowId: (user) => user.id,
+  columns: (col) => [col.key("name"), col.key("joined")],
+  features: [visibility(), selection()],
+});
+
+interface RowsOnlyProps {
+  readonly table: TableStore<typeof shownTable>;
+}
+
+function RowsOnly({ table }: RowsOnlyProps) {
+  const view = useTableRows(table, users);
+  track("rows-only");
+  return <p>{`${view.rows.length} rows`}</p>;
+}
+
+function Shown() {
+  const table = useTable(shownTable);
+  const columns = useVisibleColumns(table);
+  return (
+    <>
+      <RowsOnly table={table} />
+      <output>{columns.map((column) => column.id).join(",")}</output>
+      <button type="button" onClick={() => table.visibility.toggle("joined")}>
+        hide joined
+      </button>
+      <button type="button" onClick={() => table.selection.toggle("1")}>
+        select 1
+      </button>
+    </>
+  );
+}
+
 describe("render isolation", () => {
+  it("leaves useTableRows asleep for visibility and selection writes", async () => {
+    const user = userEvent.setup();
+    render(<Shown />);
+    const before = counts();
+    await user.click(screen.getByRole("button", { name: "hide joined" }));
+    expect(screen.getByRole("status").textContent).toBe("name");
+    await user.click(screen.getByRole("button", { name: "select 1" }));
+    expect(since(before, "rows-only")).toBe(0);
+  });
+
   it("re-renders only the toggled row's selection cell", async () => {
     const user = userEvent.setup();
     render(<App />);
