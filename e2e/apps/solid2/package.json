@@ -1,0 +1,21 @@
+{
+  "name": "@lunarhue/table-e2e-solid2",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Solid app built against Solid 2. It has a package of its own so its Solid, not the workspace's, is the one installed beside it.",
+  "dependencies": {
+    "@lunarhue/table-e2e": "workspace:*",
+    "@lunarhue/table-e2e-solid-shared": "workspace:*",
+    "@solidjs/web": "catalog:",
+    "solid-js": "catalog:"
+  },
+  "devDependencies": {
+    "@solidjs/vite-plugin": "catalog:",
+    "vite": "catalog:"
+  },
+  "scripts": {
+    "build": "vite build && vite build --ssr src/entry-server.tsx",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

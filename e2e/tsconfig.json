@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "customConditions": ["@lunarhue/source"]
+  },
+  "include": ["*.ts", "contract", "specs", "changed"]
+}

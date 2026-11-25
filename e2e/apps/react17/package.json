@@ -1,0 +1,22 @@
+{
+  "name": "@lunarhue/table-e2e-react17",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The React app built against React 17. It has a package of its own so its React, not the workspace's, is the one installed beside it.",
+  "dependencies": {
+    "@lunarhue/table-e2e": "workspace:*",
+    "@lunarhue/table-e2e-react-shared": "workspace:*",
+    "react": "catalog:react17",
+    "react-dom": "catalog:react17"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "vite": "catalog:"
+  },
+  "scripts": {
+    "build": "vite build && vite build --ssr src/entry-server.tsx",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

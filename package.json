@@ -6,6 +6,8 @@
   "workspaces": {
     "packages": [
       "packages/*",
+      "e2e",
+      "e2e/apps/*",
       "scripts"
     ],
     "catalog": {
@@ -13,6 +15,7 @@
       "@babel/core": "8.1.2",
       "@changesets/changelog-github": "1.0.1",
       "@changesets/cli": "3.0.3",
+      "@playwright/test": "1.65.1",
       "@size-limit/preset-small-lib": "14.3.0",
       "@solidjs/vite-plugin": "3.0.1",
       "@solidjs/web": "2.0.0",
@@ -37,16 +40,32 @@
       "typescript": "7.0.2",
       "vite": "8.3.8",
       "vitest": "5.1.0"
+    },
+    "catalogs": {
+      "react16": {
+        "react": "16.8.0",
+        "react-dom": "16.8.0"
+      },
+      "react17": {
+        "react": "17.0.2",
+        "react-dom": "17.0.2"
+      },
+      "react18": {
+        "react": "18.3.1",
+        "react-dom": "18.3.1"
+      }
     }
   },
   "scripts": {
     "build": "bun run --filter './packages/*' build",
-    "typecheck": "tsc -p tsconfig.json && bun run --filter './packages/*' --filter './scripts' typecheck",
+    "typecheck": "tsc -p tsconfig.json && bun run --filter './packages/*' --filter './e2e' --filter './e2e/apps/*' --filter './scripts' typecheck",
     "lint": "oxlint",
     "test": "vitest run",
     "check:package": "bun run --filter './packages/*' check:package",
     "check:consumer-types": "bun scripts/check-consumer-types.ts",
     "size": "bun run --filter './packages/*' size",
+    "e2e": "bun e2e/run.ts --all",
+    "e2e:changed": "bun e2e/run.ts",
     "changeset": "changeset",
     "version": "changeset version && bun install --lockfile-only",
     "release:pack": "bun run build && bun scripts/pack.ts",

@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "jsx": "preserve",
+    "jsxImportSource": "@solidjs/web",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "customConditions": ["@lunarhue/source"]
+  },
+  "include": ["src"]
+}
