@@ -171,3 +171,22 @@ export {
   type SortingState,
   type SortWriteOptions,
 } from "./features/sorting.js";
+export {
+  createFilterDraft,
+  filtering,
+  isFiltered,
+  remoteFiltering,
+  type ArrayElement,
+  type ArrayFilterKeys,
+  type FilterDraft,
+  type FilterEdits,
+  type FilteringApi,
+  type FilteringBaseOptions,
+  type FilteringFeature,
+  type FilteringOptions,
+  type FiltersNeedInitial,
+  type FilterValue,
+  type OptionalFilterKeys,
+  type RemoteFilteringFeature,
+  type RemoteFilteringOptions,
+} from "./features/filtering.js";
