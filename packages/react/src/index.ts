@@ -1,2 +1,2 @@
-export * from "@lunarhue/table-core";
+export * from "./server.js";
 export { useTableId } from "./use-table-id.js";
