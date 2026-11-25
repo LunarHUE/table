@@ -1,0 +1,21 @@
+{
+  "name": "@lunarhue/table-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./contract": "./contract/index.ts"
+  },
+  "dependencies": {
+    "@lunarhue/table-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

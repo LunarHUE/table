@@ -1,0 +1,23 @@
+{
+  "name": "@lunarhue/table-e2e-react-shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The React app's pages and parts, shared by every React major. Each major's package in e2e/apps/react<major> builds it against its own React.",
+  "exports": {
+    "./app": "./src/app.tsx"
+  },
+  "dependencies": {
+    "@lunarhue/table-e2e": "workspace:*",
+    "@lunarhue/table-react": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

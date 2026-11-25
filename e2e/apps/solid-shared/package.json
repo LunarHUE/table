@@ -1,0 +1,19 @@
+{
+  "name": "@lunarhue/table-e2e-solid-shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The Solid app's pages and parts. Each major's package in e2e/apps/solid<major> builds it against its own Solid.",
+  "exports": {
+    "./app": "./src/app.tsx"
+  },
+  "dependencies": {
+    "@lunarhue/table-e2e": "workspace:*",
+    "@lunarhue/table-solid": "workspace:*",
+    "@solidjs/web": "catalog:",
+    "solid-js": "catalog:"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    # Mondays at 05:00 UTC, when e2e runs every framework major in every browser.
+    - cron: "0 5 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -16,9 +19,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # A branch rule can require checks by name, so it always runs and skips its
-  # steps on a docs-only change instead.
+  # A branch rule can require checks and "e2e (chromium)" by name, so they
+  # always run and skip their steps on a docs-only change instead.
   checks:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -46,3 +50,62 @@ jobs:
         run: bun run check:consumer-types
       - if: steps.setup.outputs.docs-only != 'true'
         run: bun run size
+
+  # One job per browser, so a failure in one shows on its own. Chromium runs
+  # every framework major. Firefox and WebKit run only the newest major of
+  # each framework (react19, solid2), except in the weekly and manual runs,
+  # which do the full grid.
+  e2e:
+    name: e2e (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    # Chromium builds and runs every major, and WebKit runs slower, so this has room for both.
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    env:
+      E2E_BROWSER: ${{ matrix.browser }}
+      MAJORS: >-
+        ${{ matrix.browser != 'chromium'
+        && github.event_name != 'schedule'
+        && github.event_name != 'workflow_dispatch'
+        && '--newest' || '' }}
+      # The Version Packages pull request changes versions and changelogs, and
+      # main already ran the suite on the same source. A fork can't claim that
+      # branch name.
+      RELEASE: >-
+        ${{ github.head_ref == 'changeset-release/main'
+        && github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # e2e:changed diffs against the merge base with the base branch.
+          fetch-depth: 0
+          persist-credentials: false
+      - if: env.RELEASE == 'true'
+        run: echo "A release pull request, so there is nothing to test."
+      - id: setup
+        if: env.RELEASE != 'true'
+        uses: ./.github/actions/setup
+      - if: steps.setup.outputs.docs-only == 'true'
+        run: echo "Only docs changed, so there is nothing to test."
+      - if: env.RELEASE != 'true' && steps.setup.outputs.docs-only != 'true'
+        uses: ./.github/actions/playwright
+        with:
+          browser: ${{ matrix.browser }}
+      # Pull requests run the majors their changes reach. Pushes to main, the
+      # weekly run and manual runs do all of them. MAJORS is unquoted so that
+      # when it is empty it adds no argument.
+      - if: env.RELEASE != 'true' && steps.setup.outputs.docs-only != 'true' && github.event_name == 'pull_request'
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: bun run e2e:changed --base "$BASE" $MAJORS
+      - if: env.RELEASE != 'true' && steps.setup.outputs.docs-only != 'true' && github.event_name != 'pull_request'
+        run: bun run e2e $MAJORS
+      - if: failure() && env.RELEASE != 'true' && steps.setup.outputs.docs-only != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: e2e/playwright-report
+          retention-days: 7
