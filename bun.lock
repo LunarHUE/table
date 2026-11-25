@@ -26,8 +26,13 @@
       "version": "0.1.0",
       "devDependencies": {
         "@lunarhue/table-core": "workspace:^",
+        "@testing-library/react": "catalog:",
+        "@types/react": "catalog:",
+        "@types/react-dom": "catalog:",
+        "jsdom": "catalog:",
         "nuqs": "catalog:",
         "react": "catalog:",
+        "react-dom": "catalog:",
         "solid-js": "catalog:",
         "zustand": "catalog:",
       },
