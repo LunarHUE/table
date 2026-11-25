@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
-import { useTableId } from "./index.js";
+import { Cell, Header, useTableId } from "./index.js";
+import { DataTable } from "./test/data-table.js";
+import { NameCell, SelectAllHeader } from "./test/fixtures.js";
 
 interface CaptionProps {
   readonly text: string;
@@ -19,4 +21,10 @@ it("runs the React Compiler over the test components", () => {
   const caption = screen.getByText("ROWS");
   expect(caption.id).not.toBe("");
   expect(String(Caption)).toMatch(compiled);
+});
+
+it("compiles the adapter's components and the test table", () => {
+  for (const component of [Cell, Header, DataTable, SelectAllHeader, NameCell]) {
+    expect(String(component)).toMatch(compiled);
+  }
 });
