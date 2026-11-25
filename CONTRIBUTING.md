@@ -98,16 +98,16 @@ bun run release:pack --out-dir /tmp/table-pack --dry-run
 ## Size
 
 Each entry point has a limit in its package's `size-limit` list, and
-`bun run size` fails when an entry goes over. The current limits are
-placeholders for empty packages and will move as real code lands.
+`bun run size` fails when an entry goes over.
 
 - A feature should cost nothing for people who don't use it. Put it in its own
   entry point before you put it in core.
-- A limit is a guard, not a budget to fill. Keep limits at round numbers with
-  some headroom (about 15 to 25%) so normal fixes can drift a few hundred bytes
-  without churn, while broken tree-shaking still fails CI. If your change
-  needs more room, raise the limit in the same pull request and say by how
-  much and why.
+- A limit is a guard against broken tree-shaking or accidental bloat, not a
+  budget to chase byte-by-byte. Keep limits at round `0.5 kB` or `1 kB` steps
+  with generous headroom (roughly 30–35% on full entries and at least `1 kB`–`1.5 kB`
+  on small feature entries) so normal fixes and support don't churn CI. If a
+  legitimate feature needs more room, raise the limit in the same pull request
+  and say by how much and why.
 - Readable code wins over a few bytes. Don't golf core to stay under.
 
 ## Code style
