@@ -124,14 +124,17 @@ const hide = (columns: readonly ColumnViewInfo[], hidden: readonly string[]): re
 };
 
 const visibilityApi = (ctx: FeatureApiContext<"visibility", VisibilityState, void>): VisibilityApi => {
-  const set = (id: ColumnId, visible: boolean) =>
+  // `visible` decides from the previous state, so a toggle on a controlled
+  // slice reads the value React will hand the updater, not the last render's.
+  const set = (id: ColumnId, visible: boolean | ((prev: VisibilityState) => boolean)) =>
     ctx.setState((prev) => {
-      const hidden = withId(prev.hidden, id, !visible);
+      const show = typeof visible === "function" ? visible(prev) : visible;
+      const hidden = withId(prev.hidden, id, !show);
       return hidden === prev.hidden ? prev : { hidden };
     });
   return {
-    toggle: (id) => set(id, !isColumnVisible(ctx.getState(), id)),
-    set,
+    toggle: (id) => set(id, (prev) => !isColumnVisible(prev, id)),
+    set: (id, visible) => set(id, visible),
     setHidden: (hidden) => ctx.setState({ hidden }),
     showAll: () => ctx.setState((prev) => (prev.hidden.length === 0 ? prev : { hidden: none })),
     reset: () => ctx.setState(ctx.initial),
@@ -209,14 +212,15 @@ const inOrder = <C extends ColumnInfo>(columns: readonly C[], order: readonly st
 };
 
 const layoutApi = (ctx: FeatureApiContext<"columnLayout", ColumnLayoutState, void>): ColumnLayoutApi => {
-  const setVisible = (id: ColumnId, visible: boolean) =>
+  const setVisible = (id: ColumnId, visible: boolean | ((prev: ColumnLayoutState) => boolean)) =>
     ctx.setState((prev) => {
-      const hidden = withId(prev.hidden, id, !visible);
+      const show = typeof visible === "function" ? visible(prev) : visible;
+      const hidden = withId(prev.hidden, id, !show);
       return hidden === prev.hidden ? prev : { ...prev, hidden };
     });
   return {
-    setVisible,
-    toggleVisible: (id) => setVisible(id, !isColumnVisible(ctx.getState(), id)),
+    setVisible: (id, visible) => setVisible(id, visible),
+    toggleVisible: (id) => setVisible(id, (prev) => !isColumnVisible(prev, id)),
     showAll: () => ctx.setState((prev) => (prev.hidden.length === 0 ? prev : { ...prev, hidden: none })),
     setOrder: (order) => ctx.setState((prev) => ({ ...prev, order })),
     moveColumn: (id, toIndex) =>

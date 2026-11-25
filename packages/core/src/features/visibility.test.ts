@@ -310,3 +310,34 @@ describe("columnLayout", () => {
     expect(Object.keys(table.getRequest())).toEqual(["filtering", "sorting"]);
   });
 });
+
+describe("toggles on a controlled slice", () => {
+  it("decide from the previous state, so two toggles in one handler cancel out", () => {
+    type Shown = { readonly hidden: readonly Id[] };
+    let state: Shown = { hidden: [] };
+    const queued: ((prev: Shown) => Shown)[] = [];
+    const table = createTableStore(
+      defineTable<User>()({ getRowId: (row) => row.id, columns, features: [visibility()] }),
+      { bind: { visibility: { kind: "controlled", state, onStateChange: (updater) => queued.push(updater) } } },
+    );
+    // The controlled state stays as the last render left it until the queue runs, as in a React event handler.
+    table.visibility.toggle("email");
+    table.visibility.toggle("email");
+    table.visibility.toggle("age");
+    for (const fn of queued) state = fn(state);
+    expect(state.hidden).toEqual(["age"]);
+  });
+
+  it("does the same for columnLayout.toggleVisible", () => {
+    let state: Layout = { hidden: [], order: [], pinned: { start: [], end: [] }, sizes: {} };
+    const queued: ((prev: Layout) => Layout)[] = [];
+    const table = createTableStore(
+      defineTable<User>()({ getRowId: (row) => row.id, columns, features: [columnLayout()] }),
+      { bind: { columnLayout: { kind: "controlled", state, onStateChange: (updater) => queued.push(updater) } } },
+    );
+    table.columnLayout.toggleVisible("age");
+    table.columnLayout.toggleVisible("age");
+    for (const fn of queued) state = fn(state);
+    expect(state.hidden).toEqual([]);
+  });
+});
