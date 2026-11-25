@@ -32,6 +32,7 @@ export {
 } from "./bindings.js";
 export {
   ROW_STAGE_PHASES,
+  type ColumnId,
   type ColumnInfo,
   type ColumnViewInfo,
   type ColumnZone,
@@ -42,6 +43,7 @@ export {
   type RowLike,
   type RowsEffect,
   type RowStagePhase,
+  type SortableColumnId,
 } from "./contract.js";
 export {
   defineFeature,

@@ -29,6 +29,20 @@ export type RowStagePhase = "filter" | "sort" | "flatten" | "window" | "decorate
 /** The row pipeline's phases, in the order they run. */
 export const ROW_STAGE_PHASES: readonly RowStagePhase[] = ["filter", "sort", "flatten", "window", "decorate"];
 
+/**
+ * A column id inside a feature's state, as in a list of hidden columns.
+ * Plain strings fit it, so feature code reads and writes it as a string. A
+ * table's `initialState` narrows it to the table's column ids.
+ */
+export type ColumnId = string & { readonly "~columnId"?: "column" };
+
+/**
+ * The id of a sortable column inside a feature's state, as in a sort list.
+ * Plain strings fit it. A table's `initialState` narrows it to the ids of the
+ * columns with `sortable: true`.
+ */
+export type SortableColumnId = string & { readonly "~columnId"?: "sortable" };
+
 /** Where a column sits: pinned to the start, scrolling in the center, or pinned to the end. */
 export type ColumnZone = "start" | "center" | "end";
 
