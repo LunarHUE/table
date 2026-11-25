@@ -201,6 +201,13 @@ function App({ navigate: given }: AppProps) {
       <button type="button" onClick={() => table.visibility.toggle("role")}>
         hide role
       </button>
+      {/* A link to admins on page 2: the URL changes without the table. */}
+      <button
+        type="button"
+        onClick={() => setUrl({ ...startUrl, filtering: { search: "", role: "admin" }, pagination: { pageIndex: 1, pageSize: 2 } })}
+      >
+        admins link
+      </button>
       <output data-testid="url">{JSON.stringify(url)}</output>
       <Rows table={table} />
       <RowsOnly table={table} />
@@ -260,6 +267,20 @@ describe("a table with three owners", () => {
     expect(shownUrl().filtering).toEqual({ search: "a" });
     expect(shownUrl().pagination).toEqual({ pageIndex: 0, pageSize: 2 });
     expect(screen.getByTestId("selection").textContent).toBe("ids");
+  });
+
+  it("clears an all-matching selection when a link changes the URL's filter, and writes nothing back", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "select all" }));
+    expect(screen.getByTestId("selection").textContent).toBe("all");
+
+    urlCalls = [];
+    await user.click(screen.getByRole("button", { name: "admins link" }));
+    expect(screen.getByTestId("selection").textContent).toBe("ids");
+    // The link chose page 2, so the page stays, and the table sends the URL nothing.
+    expect(shownUrl().pagination.pageIndex).toBe(1);
+    expect(urlCalls).toEqual([]);
   });
 
   it("lands every command of one handler: two filter edits and a sort", async () => {
@@ -390,6 +411,8 @@ describe("console", () => {
     await user.click(screen.getByRole("button", { name: "hide role" }));
     await user.click(screen.getByRole("button", { name: "select all" }));
     await user.type(screen.getByRole("textbox", { name: "search" }), "x");
+    await user.click(screen.getByRole("button", { name: "select all" }));
+    await user.click(screen.getByRole("button", { name: "admins link" }));
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
   });
 });

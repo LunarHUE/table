@@ -315,6 +315,104 @@ describe("useTableBinding", () => {
     expect(screen.getByLabelText<HTMLInputElement>("q").value).toBe("ada");
   });
 
+  it("clears an all-matching selection when the back button or a link changes the URL, with no onWrite", () => {
+    const onWrite = vi.fn<(qs: string) => void>();
+
+    function App() {
+      // A history stack: the table pushes entries, and back pops one without the table.
+      const [entries, setEntries] = useState<readonly RawSearch[]>([{ q: "" }]);
+      const search = entries[entries.length - 1] ?? {};
+      const { bind } = useTableBinding(usersTable, appTableUrl, {
+        input: search,
+        extra: usersFilters,
+        transition: false,
+        onWrite(sp) {
+          onWrite(sp.toString());
+          setEntries((prev) => [...prev, Object.fromEntries(sp)]);
+        },
+      });
+      const table = useTable(usersTable, { bind });
+      const filters = useFeatureState(table, "filtering");
+      const picked = useFeatureState(table, "selection");
+      const page = useFeatureState(table, "pagination");
+      return (
+        <div>
+          <input aria-label="q" value={filters.q} onChange={(e) => table.filtering.set("q", e.target.value)} />
+          <button type="button" onClick={() => table.selection.selectAllMatching()}>
+            select all
+          </button>
+          <button type="button" onClick={() => setEntries((prev) => prev.slice(0, -1))}>
+            back
+          </button>
+          <button type="button" onClick={() => setEntries((prev) => [...prev, { q: "grace", page: "3" }])}>
+            grace link
+          </button>
+          <span data-testid="selection">{picked.mode}</span>
+          <span data-testid="page">{page.pageIndex + 1}</span>
+        </div>
+      );
+    }
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("q"), { target: { value: "ada" } });
+    expect(onWrite).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText("select all"));
+    expect(screen.getByTestId("selection").textContent).toBe("all");
+
+    fireEvent.click(screen.getByText("back"));
+    expect(screen.getByLabelText<HTMLInputElement>("q").value).toBe("");
+    expect(screen.getByTestId("selection").textContent).toBe("ids");
+
+    fireEvent.click(screen.getByText("select all"));
+    fireEvent.click(screen.getByText("grace link"));
+    expect(screen.getByTestId("selection").textContent).toBe("ids");
+    // The link chose its page, and the table sent the URL nothing.
+    expect(screen.getByTestId("page").textContent).toBe("3");
+    expect(onWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a selection made while the table's own navigation is pending", async () => {
+    let finishNav: (() => void) | undefined;
+
+    function App() {
+      const [search, setSearch] = useState<RawSearch>({ q: "" });
+      const [, startOuter] = useTransition();
+      const { bind } = useTableBinding(usersTable, appTableUrl, {
+        input: search,
+        extra: usersFilters,
+        onWrite(sp) {
+          startOuter(async () => {
+            await new Promise<void>((resolve) => {
+              finishNav = resolve;
+            });
+            setSearch(Object.fromEntries(sp));
+          });
+        },
+      });
+      const table = useTable(usersTable, { bind });
+      const picked = useFeatureState(table, "selection");
+      return (
+        <div>
+          <input aria-label="q" onChange={(e) => table.filtering.set("q", e.target.value)} />
+          <button type="button" onClick={() => table.selection.selectAllMatching()}>
+            select all
+          </button>
+          <span data-testid="selection">{picked.mode}</span>
+        </div>
+      );
+    }
+
+    render(<App />);
+    fireEvent.change(screen.getByLabelText("q"), { target: { value: "ada" } });
+    fireEvent.click(screen.getByText("select all"));
+    expect(screen.getByTestId("selection").textContent).toBe("all");
+    // The URL catches up with the filter the table already shows: same rows, same selection.
+    await act(async () => {
+      finishNav?.();
+    });
+    expect(screen.getByTestId("selection").textContent).toBe("all");
+  });
+
   it("intersects adapter features with tableDef and composes with other feature owners", () => {
     let hidden: readonly ("name" | "role")[] = [];
     const visListeners = new Set<() => void>();

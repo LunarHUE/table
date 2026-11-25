@@ -1,7 +1,7 @@
-import { createStateCoordinator, type FeatureBindings } from "./bindings.js";
+import { createStateCoordinator, type FeatureBindings, type OwnerChange } from "./bindings.js";
 import { cellKey, createCell, createCells, createKeyedCells, type KeyedStore } from "./cells.js";
 import { computeColumns, type ColumnPipelineResult, type ColumnStep } from "./column-pipeline.js";
-import type { ColumnInfo } from "./contract.js";
+import type { ColumnInfo, RowsEffect } from "./contract.js";
 import type { AnyTableDef, FeaturesOf, RequestOf, RowOf, StateOf, Table } from "./define-table.js";
 import type { AnyFeature, InitialState, WriteOptions } from "./feature.js";
 import { problem } from "./problem.js";
@@ -176,12 +176,51 @@ function run(def: AnyTableDef, options: Options) {
     initial[feature.name] = normalize(feature.name, start);
   }
 
+  /**
+   * Adds to `patch` each other feature's answer to a rows effect, as its
+   * `onRowsEffect` gives it. When the patch already updates that feature,
+   * the answer starts from the update.
+   */
+  const answer = (effect: RowsEffect, source: string, patch: Record<string, unknown>) => {
+    for (const other of features) {
+      const react = other.def.state?.onRowsEffect;
+      if (!react || other.name === source) continue;
+      const own = patch[other.name];
+      const ctx = { options: other.options, columns: baseColumns(), source };
+      patch[other.name] = (prev: unknown) => react(effect, own === undefined ? normalize(other.name, prev) : resolve(own, prev), ctx);
+    }
+  };
+
+  /**
+   * Answers an owner that changed its slices itself, such as the URL on a
+   * back button, as the table answers its own write of them: a new filter
+   * clears "all matching" and goes back to the first page. A slice counts as
+   * changed only when its value reads differently, so an owner that hands
+   * over a fresh but equal object changes nothing.
+   */
+  const onOwnerChange = (changes: readonly OwnerChange<Values>[]): Record<string, unknown> | undefined => {
+    let effect: RowsEffect = "none";
+    let source = "";
+    for (const { feature, prev, next } of changes) {
+      const own = def.resolvedFeatures.byName.get(feature)?.def.state?.rowsEffect ?? "view";
+      if (own === "none" || effect === "matching" || (own === "view" && effect === "view")) continue;
+      if (stableStringify(prev) === stableStringify(next)) continue;
+      effect = own;
+      source = feature;
+    }
+    if (effect === "none") return undefined;
+    const patch: Record<string, unknown> = {};
+    answer(effect, source, patch);
+    return patch;
+  };
+
   const cells = createCells();
   const [replace, listen] = cells;
   const coordinator = createStateCoordinator<Values>({
     initial,
     bindings: options.bind ?? {},
     cells,
+    onOwnerChange,
   });
   const read: Read = (name) => normalize(name, coordinator.getSnapshot(name));
   const readServer: Read = (name) => normalizeServer(name, coordinator.getServerSnapshot(name));
@@ -244,15 +283,7 @@ function run(def: AnyTableDef, options: Options) {
       const updater = updates[name];
       patch[name] = (prev: unknown) => resolve(updater, normalize(name, prev));
     }
-    if (effect !== "none") {
-      for (const other of features) {
-        const react = other.def.state?.onRowsEffect;
-        if (!react || other === source) continue;
-        const own = patch[other.name];
-        const ctx = { options: other.options, columns: baseColumns(), source: source.name };
-        patch[other.name] = (prev: unknown) => react(effect, own === undefined ? normalize(other.name, prev) : resolve(own, prev), ctx);
-      }
-    }
+    if (effect !== "none") answer(effect, source.name, patch);
     coordinator.applyPatch(patch);
   };
 

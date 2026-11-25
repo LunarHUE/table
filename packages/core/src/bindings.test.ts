@@ -5,6 +5,8 @@ import {
   type ControlledBinding,
   type ExternalGroupBinding,
   type ExternalBinding,
+  type OwnerChange,
+  type StatePatch,
 } from "./bindings.js";
 import { createCells } from "./cells.js";
 
@@ -423,5 +425,72 @@ describe("mixed owners", () => {
     expect(table.getSnapshot("selection")).toEqual(["r1"]);
     expect(table.getSnapshot("filter")).toBe("x");
     expect(table.getSnapshot("visibility")).toEqual({ price: false });
+  });
+});
+
+/** Answers a filter change by clearing the selection and going to the first page, as the store does. */
+const clearOnFilter = (changes: readonly OwnerChange<State>[]): StatePatch<State> | undefined =>
+  changes.some((change) => change.feature === "filter")
+    ? { selection: [], pagination: (prev) => ({ ...prev, pageIndex: 0 }) }
+    : undefined;
+
+describe("owner changes", () => {
+  type Url = Pick<State, "filter" | "pagination">;
+  const startUrl: Url = { filter: "", pagination: { pageIndex: 2, pageSize: 10 } };
+
+  it("answers an external owner's own change, less the slices that owner holds", () => {
+    const url = externalStore<Url>(startUrl);
+    const group: ExternalGroupBinding<Url> = { kind: "group", ...url.binding };
+    const onOwnerChange = vi.fn<typeof clearOnFilter>(clearOnFilter);
+    const table = createStateCoordinator({
+      initial: { ...initial, selection: ["r1"] },
+      bindings: { filter: group, pagination: group },
+      onOwnerChange,
+    });
+    const selection = vi.fn<() => void>();
+    table.subscribe("selection", selection);
+
+    url.write({ ...startUrl, filter: "x" });
+    expect(onOwnerChange).toHaveBeenCalledWith([{ feature: "filter", prev: "", next: "x" }]);
+    expect(table.getSnapshot("selection")).toEqual([]);
+    expect(selection).toHaveBeenCalledTimes(1);
+    // The URL holds the page, so the answer leaves it and writes nothing back.
+    expect(table.getSnapshot("pagination").pageIndex).toBe(2);
+    expect(url.binding.set).not.toHaveBeenCalled();
+  });
+
+  it("doesn't call onOwnerChange for the table's own patches", () => {
+    const url = externalStore<Url>(startUrl);
+    const group: ExternalGroupBinding<Url> = { kind: "group", ...url.binding };
+    const onOwnerChange = vi.fn<typeof clearOnFilter>(clearOnFilter);
+    const table = createStateCoordinator({ initial, bindings: { filter: group, pagination: group }, onOwnerChange });
+    table.subscribe("filter", () => {});
+
+    table.applyPatch({ filter: "x" });
+    expect(url.binding.set).toHaveBeenCalledTimes(1);
+    expect(onOwnerChange).not.toHaveBeenCalled();
+  });
+
+  it("holds a controlled owner's answer until flush", () => {
+    const owner = controlledGroupOwner<Url>(startUrl);
+    const first = owner.group();
+    const onOwnerChange = vi.fn<typeof clearOnFilter>(clearOnFilter);
+    const table = createStateCoordinator({
+      initial: { ...initial, selection: ["r1"] },
+      bindings: { filter: first, pagination: first },
+      onOwnerChange,
+    });
+    table.subscribe("selection", () => {});
+
+    owner.onStateChange((prev) => ({ ...prev, filter: "x" }));
+    owner.commit();
+    owner.onStateChange.mockClear();
+    const next = owner.group();
+    table.updateControlled({ filter: next, pagination: next });
+    expect(table.getSnapshot("selection")).toEqual(["r1"]);
+
+    table.flush();
+    expect(table.getSnapshot("selection")).toEqual([]);
+    expect(owner.onStateChange).not.toHaveBeenCalled();
   });
 });
