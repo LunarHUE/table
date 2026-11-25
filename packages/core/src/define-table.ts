@@ -31,9 +31,11 @@ export type ColumnIds<TColumns extends readonly AnyColumn[]> = TColumns[number][
 /** The ids of the columns in a list that have `sortable: true`. */
 export type SortableColumnIds<TColumns extends readonly AnyColumn[]> = TColumns[number] extends infer C
   ? C extends { readonly id: infer I; readonly sortable?: infer S }
-    ? true extends S
-      ? I
-      : never
+    ? [unknown] extends [S]
+      ? never
+      : true extends S
+        ? I
+        : never
     : never
   : never;
 

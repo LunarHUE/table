@@ -170,35 +170,40 @@ const cleared = (initial: Values): Values => {
   return next;
 };
 
-/** Makes the edits on top of reading and writing whole filters. */
-function edits<TFilters extends object>(read: () => TFilters, write: (next: TFilters) => void): FilterEdits<TFilters> {
+/** Makes the edits on top of a functional updater over whole filters. */
+function edits<TFilters extends object>(apply: (fn: (prev: TFilters) => TFilters) => void): FilterEdits<TFilters> {
   // Edits build new filters key by key; the result has the keys `TFilters` allows.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  const update = (fn: (state: Values) => Values) => write(fn(read() as Values) as TFilters);
+  const update = (fn: (state: Values) => Values) => apply((prev) => fn(prev as Values) as TFilters);
   return {
     set: (key, value) => update((state) => withKey(state, key, resolve<unknown>(value, state[key]))),
     unset: (key) => update((state) => withKey(state, key, undefined)),
     toggle: (key, item) => update((state) => withKey(state, key, toggled(state[key], item))),
-    replace: (next) => write(resolve(next, read())),
+    replace: (next) => apply((prev) => resolve(next, prev)),
   };
 }
 
 function filteringApi<TFilters extends object>(
-  ctx: { readonly initial: TFilters; getState(this: void): TFilters; setState(this: void, next: TFilters): void },
+  ctx: { readonly initial: TFilters; getState(this: void): TFilters; setState(this: void, next: StateUpdater<TFilters>): void },
   options: FilteringBaseOptions<TFilters> | undefined,
 ): FilteringApi<TFilters> {
   const isEqual = options?.isEqual ?? sameValue;
-  const write = (next: TFilters) => {
-    if (!isEqual(ctx.getState(), next)) ctx.setState(next);
+  const apply = (fn: (prev: TFilters) => TFilters) => {
+    const current = ctx.getState();
+    if (isEqual(current, fn(current))) return;
+    ctx.setState((prev) => {
+      const next = fn(prev);
+      return isEqual(prev, next) ? prev : next;
+    });
   };
   // `cleared` keeps the starting filters' keys and value types.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const empty = () => options?.empty ?? (cleared(ctx.initial as Values) as TFilters);
   return {
-    ...edits(ctx.getState, write),
+    ...edits(apply),
     get: ctx.getState,
-    clear: () => write(empty()),
-    reset: () => write(ctx.initial),
+    clear: () => apply(empty),
+    reset: () => apply(() => ctx.initial),
   };
 }
 
@@ -302,8 +307,8 @@ export function createFilterDraft<TFilters extends object>(table: {
     if (had) notify();
   };
   return {
-    ...edits(get, (value) => {
-      draft = { value };
+    ...edits((fn) => {
+      draft = { value: fn(get()) };
       notify();
     }),
     get,
