@@ -49,23 +49,24 @@ export function libraryBuild(): UserConfig[] {
   ];
 }
 
-// Declarations for a package whose users don't install core: the adapters
-// and bind. tsc writes them to dist/types first, then this bundles
-// each entry's and inlines @lunarhue/table-core, so the package's types are
-// its own. A consumer under a strict install (pnpm, Bun isolated) can't
-// resolve core, and declarations tsc writes for that consumer's code must
-// name only the packages it installed. The entries share one chunk of core's
-// types, so a type from `.` and the same type from `./mini` are one type.
-// No entry exports that chunk, so each entry must export every core type its
-// functions return, or the consumer's emit fails with TS2883.
+// Declarations for the adapters. tsc writes them to dist/types first, then
+// this bundles each entry's into one file per entry plus a shared chunk, so a
+// type from `.` and the same type from `./mini` are one type.
+//
+// @lunarhue/table-core stays an import. A bundled copy of core's types is a
+// different type to TypeScript, so a StateAdapter from core's
+// `defineStateAdapter` wouldn't fit the adapter's binding (TS2345). Core is a
+// dependency of each adapter, so the adapter's declarations always resolve it.
+// A consumer that installs only the adapter names core's types through the
+// adapter's `export *` re-export, so each entry must export every core type
+// its functions return, or that consumer's declaration emit fails with TS2883.
 export function typesBuild(entries: readonly string[]): UserConfig[] {
   const types: UserConfig = {
     entry: Object.fromEntries(entries.map((name) => [name, `dist/types/${name}.d.ts`])),
-    // Without the @lunarhue/source condition, so core resolves to its built declarations.
     tsconfig: "tsconfig.build.json",
     // The input is declarations already, so oxc only parses them.
     dts: { dtsOnly: true, generator: "oxc" },
-    deps: { neverBundle: true, alwaysBundle: [/^@lunarhue\/table-core(\/|$)/] },
+    deps: { neverBundle: true },
     outExtensions: () => ({ dts: ".d.ts" }),
     outputOptions: { entryFileNames: "[name].d.ts", chunkFileNames: "shared.d.ts" },
     hash: false,
