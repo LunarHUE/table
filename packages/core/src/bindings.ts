@@ -118,6 +118,13 @@ export type FeatureBindings<TState extends object> = {
 /** Changes to some features' state, applied together. */
 export type StatePatch<TState extends object> = { readonly [K in keyof TState]?: StateUpdater<TState[K]> };
 
+/** One slice an owner changed on its own, with its value before and after. */
+export interface OwnerChange<TState extends object> {
+  readonly feature: keyof TState & string;
+  readonly prev: unknown;
+  readonly next: unknown;
+}
+
 /** What `createStateCoordinator` takes. */
 export interface CoordinatorOptions<TState extends object> {
   /** Every feature's starting value. Features with a binding read their owner instead. */
@@ -125,6 +132,14 @@ export interface CoordinatorOptions<TState extends object> {
   readonly bindings?: FeatureBindings<TState>;
   /** The cells to keep feature snapshots in, so the coordinator shares batches with the rest of a table. */
   readonly cells?: Cells;
+  /**
+   * Called when an owner changes some of its slices itself, as when the URL
+   * changes on a link or the back button, and not because of `applyPatch`.
+   * Returns the patch to apply in answer, or nothing. The coordinator drops
+   * the patch's slices that the same owner holds: the owner set those along
+   * with the rest, so its values stand.
+   */
+  readonly onOwnerChange?: (changes: readonly OwnerChange<TState>[]) => StatePatch<TState> | undefined;
 }
 
 /** A table's state, feature by feature, whoever owns each one. */
@@ -143,8 +158,9 @@ export interface StateCoordinator<TState extends object> {
   readonly applyPatch: (patch: StatePatch<TState>) => void;
   /**
    * Takes the bindings from a new render, for the controlled features. It
-   * wakes no listeners, so it is safe to call during render. Call `flush`
-   * once the render commits.
+   * wakes no listeners and calls no owner, so it is safe to call during
+   * render. Call `flush` once the render commits: that applies the patch
+   * `onOwnerChange` gave for the new values, then wakes the listeners.
    */
   readonly updateControlled: (bindings: FeatureBindings<TState>) => void;
   readonly flush: () => void;
@@ -161,17 +177,24 @@ interface Erased {
   readonly getSnapshot: (slice: string) => unknown;
   readonly getServerSnapshot: (slice: string) => unknown;
   readonly subscribe: (slice: string, listener: () => void) => () => void;
-  readonly applyPatch: (patch: Readonly<Record<string, unknown>>) => void;
+  readonly applyPatch: (patch: Patch) => void;
   readonly updateControlled: (bindings: Bindings) => void;
   readonly flush: () => void;
   readonly batch: <T>(fn: () => T) => T;
 }
+
+type Patch = Readonly<Record<string, unknown>>;
+type OnOwnerChange = (changes: readonly OwnerChange<Values>[]) => Patch | undefined;
 
 interface Owner {
   binding: Binding;
   readonly keys: string[];
   /** Unsubscribes from an external owner while the coordinator has listeners. */
   off: (() => void) | undefined;
+  /** The slice values, in `keys` order, the table last answered. Unset until the first read. */
+  seen: unknown[] | undefined;
+  /** True while `set` runs, so the owner's own echo of a table write isn't taken for its own change. */
+  writing: boolean;
 }
 
 const controlled = (binding: Binding) => binding.kind === "controlled" || binding.kind === "controlled-group";
@@ -202,15 +225,21 @@ export function createStateCoordinator<TState extends object>(
   // The work is the same for every slice, so it runs on erased types. The
   // public types keep each slice's value tied to its name.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return coordinate(options.initial as Values, (options.bindings ?? {}) as Bindings, options.cells) as unknown as StateCoordinator<TState>;
+  const onOwnerChange = options.onOwnerChange as OnOwnerChange | undefined;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  const erased = coordinate(options.initial as Values, (options.bindings ?? {}) as Bindings, options.cells, onOwnerChange);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  return erased as unknown as StateCoordinator<TState>;
 }
 
-function coordinate(initial: Values, bindings: Bindings, shared: Cells | undefined): Erased {
+function coordinate(initial: Values, bindings: Bindings, shared: Cells | undefined, onOwnerChange: OnOwnerChange | undefined): Erased {
   const [replace, listen, flush, batch] = shared ?? createCells();
   const slices = new Map<string, Cell<unknown>>();
   const owners = new Map<string, Owner>();
   const all: Owner[] = [];
   let listeners = 0;
+  /** Answers to controlled owners' changes, held from `updateControlled` until `flush`. */
+  let queued: Patch[] = [];
 
   const groups = new Map<Binding, Owner>();
   for (const key of Object.keys(bindings)) {
@@ -218,7 +247,7 @@ function coordinate(initial: Values, bindings: Bindings, shared: Cells | undefin
     if (!binding) continue;
     let owner = grouped(binding) ? groups.get(binding) : undefined;
     if (!owner) {
-      owner = { binding, keys: [], off: undefined };
+      owner = { binding, keys: [], off: undefined, seen: undefined, writing: false };
       all.push(owner);
       if (grouped(binding)) groups.set(binding, owner);
     }
@@ -241,6 +270,36 @@ function coordinate(initial: Values, bindings: Bindings, shared: Cells | undefin
     else if (binding.kind === "controlled-group") values = binding.state;
     else value = binding.kind === "controlled" ? binding.state : binding.get();
     for (const key of owner.keys) replace(cellOf(key), values ? values[key] : value);
+    owner.seen ??= current(owner);
+  };
+
+  const current = (owner: Owner) => owner.keys.map((key) => cellOf(key).snapshot);
+
+  /**
+   * Marks the owner's slices as answered. With `answer`, returns the patch
+   * `onOwnerChange` gives for what changed since the last time, less the
+   * slices this owner holds.
+   */
+  const settle = (owner: Owner, answer: boolean): Patch | undefined => {
+    const before = owner.seen;
+    const now = current(owner);
+    owner.seen = now;
+    if (!answer || !before || !onOwnerChange) return undefined;
+    const changes: OwnerChange<Values>[] = [];
+    owner.keys.forEach((feature, i) => {
+      if (!Object.is(before[i], now[i])) changes.push({ feature, prev: before[i], next: now[i] });
+    });
+    if (changes.length === 0) return undefined;
+    const patch = onOwnerChange(changes);
+    if (!patch) return undefined;
+    const rest: Record<string, unknown> = {};
+    let any = false;
+    for (const key of Object.keys(patch)) {
+      if (owners.get(key) === owner) continue;
+      rest[key] = patch[key];
+      any = true;
+    }
+    return any ? rest : undefined;
   };
 
   const dispatch = (owner: Owner, entries: Entries) => {
@@ -254,24 +313,58 @@ function coordinate(initial: Values, bindings: Bindings, shared: Cells | undefin
       binding.onStateChange((prev) => merge(prev, entries));
       return;
     }
-    if (binding.kind === "group") {
-      const prev = binding.get();
-      const next = merge(prev, entries);
-      if (next !== prev) binding.set(next);
-    } else {
-      const prev = binding.get();
-      const next = resolve(single, prev);
-      if (!Object.is(next, prev)) binding.set(next);
+    owner.writing = true;
+    try {
+      if (binding.kind === "group") {
+        const prev = binding.get();
+        const next = merge(prev, entries);
+        if (next !== prev) binding.set(next);
+      } else {
+        const prev = binding.get();
+        const next = resolve(single, prev);
+        if (!Object.is(next, prev)) binding.set(next);
+      }
+    } finally {
+      owner.writing = false;
     }
     pull(owner);
+    // The table made this change and answered it in the same patch.
+    settle(owner, false);
+  };
+
+  const applyPatch = (patch: Patch) =>
+    batch(() => {
+      const work = new Map<Owner, (readonly [string, unknown])[]>();
+      for (const key of Object.keys(patch)) {
+        const updater = patch[key];
+        const owner = owners.get(key);
+        if (owner) {
+          const entries = work.get(owner);
+          if (entries) entries.push([key, updater]);
+          else work.set(owner, [[key, updater]]);
+        } else {
+          const cell = cellOf(key);
+          replace(cell, resolve(updater, cell.snapshot));
+        }
+      }
+      for (const [owner, entries] of work) dispatch(owner, entries);
+    });
+
+  /** Reads an external owner, and answers what changed unless the table is writing to it. */
+  const hear = (owner: Owner) => {
+    pull(owner);
+    const answer = settle(owner, !owner.writing);
+    if (answer) applyPatch(answer);
   };
 
   const attach = () => {
     for (const owner of all) {
-      pull(owner);
       const { binding } = owner;
-      if (binding.kind !== "controlled" && binding.kind !== "controlled-group") {
-        owner.off = binding.subscribe(() => batch(() => pull(owner)));
+      if (controlled(binding)) pull(owner);
+      else {
+        // An owner that changed while nobody listened is answered now.
+        hear(owner);
+        owner.off = binding.subscribe(() => batch(() => hear(owner)));
       }
     }
   };
@@ -311,23 +404,7 @@ function coordinate(initial: Values, bindings: Bindings, shared: Cells | undefin
         if (--listeners === 0) detach();
       };
     },
-    applyPatch: (patch) =>
-      batch(() => {
-        const work = new Map<Owner, (readonly [string, unknown])[]>();
-        for (const key of Object.keys(patch)) {
-          const updater = patch[key];
-          const owner = owners.get(key);
-          if (owner) {
-            const entries = work.get(owner);
-            if (entries) entries.push([key, updater]);
-            else work.set(owner, [[key, updater]]);
-          } else {
-            const cell = cellOf(key);
-            replace(cell, resolve(updater, cell.snapshot));
-          }
-        }
-        for (const [owner, entries] of work) dispatch(owner, entries);
-      }),
+    applyPatch,
     updateControlled: (next) => {
       for (const key of Object.keys(next)) {
         const binding = next[key];
@@ -346,9 +423,17 @@ function coordinate(initial: Values, bindings: Bindings, shared: Cells | undefin
         }
         owner.binding = replacement;
         pull(owner);
+        const answer = settle(owner, true);
+        if (answer) queued.push(answer);
       }
     },
-    flush,
+    flush: () => {
+      const answers = queued;
+      queued = [];
+      // `batch` wakes the listeners once, after every answer has landed.
+      if (answers.length > 0) batch(() => answers.forEach(applyPatch));
+      else flush();
+    },
     batch,
   };
 }
