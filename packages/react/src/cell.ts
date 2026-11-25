@@ -1,15 +1,15 @@
 import {
+  findFeaturePart,
+  footerValues,
   hasFeature,
-  type AnyFeaturePart,
+  selectionScopeOf,
   type ColumnView,
   type HeaderCell,
   type Row,
   type SelectionApi,
-  type SelectionScope,
   type Table,
 } from "@lunarhue/table-core";
 import { createElement, useMemo, type ComponentType, type ReactNode } from "react";
-import { partsOf } from "./define-cell.js";
 import { useSource } from "./select.js";
 import { keyedSource, metaSource, noSource, storeOf, type AnyTable } from "./sources.js";
 import { useSelectAllOf } from "./view-hooks.js";
@@ -29,15 +29,13 @@ export interface HeaderProps<TRow> {
   readonly rows?: readonly Row<TRow>[];
 }
 
-/** The selection part among a column's parts and its component's, if any. */
-const selectionPart = (parts: readonly AnyFeaturePart[] | undefined, component: unknown): AnyFeaturePart | undefined =>
-  [...(parts ?? []), ...partsOf(component)].find((part) => part.feature === "selection");
-
-/** The scope a `selectable()` part gives its header checkbox. */
-const scopeOf = (part: AnyFeaturePart | undefined): SelectionScope => {
-  const config = part?.config;
-  return typeof config === "object" && config !== null && "scope" in config && config.scope === "matching" ? "matching" : "page";
-};
+/** Props for `<Footer>`. */
+export interface FooterProps<TRow> {
+  readonly table: Table<TRow>;
+  readonly column: ColumnView<TRow>;
+  /** The rows shown, whose data values the footer summarizes. */
+  readonly rows: readonly Row<TRow>[];
+}
 
 /** The table's selection commands, when it has selection. */
 const selectionApi = (table: AnyTable): SelectionApi | undefined =>
@@ -68,7 +66,7 @@ export function Cell<TRow>(props: CellProps<TRow>): ReactNode {
   const { table, row, column } = props;
   const store = storeOf(table);
   const component = column.column.cell;
-  const selection = selectionPart(column.column.parts, component) === undefined ? undefined : selectionApi(table);
+  const selection = findFeaturePart("selection", column.column.parts, component) === undefined ? undefined : selectionApi(table);
   const selected = useSource(selection ? keyedSource(store, "row", "selection", row.id) : noSource) === true;
   const meta = useSource(metaSource(store));
   const value = column.column.getValue?.(row.original);
@@ -93,9 +91,9 @@ export function Header<TRow>(props: HeaderProps<TRow>): ReactNode {
   const store = storeOf(table);
   const column = header.column;
   const component = column?.column.header;
-  const part = selectionPart(column?.column.parts, component);
+  const part = findFeaturePart("selection", column?.column.parts, component);
   const selection = part === undefined ? undefined : selectionApi(table);
-  const selectAll = useSelectAllOf(store, selection, rows ?? noRows, scopeOf(part));
+  const selectAll = useSelectAllOf(store, selection, rows ?? noRows, selectionScopeOf(part));
   const meta = useSource(metaSource(store));
   const api = useMemo(() => {
     const base = { header, column, table, meta };
@@ -103,4 +101,20 @@ export function Header<TRow>(props: HeaderProps<TRow>): ReactNode {
   }, [header, column, table, meta, selection, selectAll]);
   if (component === undefined || component === null) return header.label;
   return createElement(asComponent<{ readonly header: typeof api }>(component), { header: api });
+}
+
+/**
+ * Renders one footer cell: the column's `footer` component with a
+ * `FooterApi` (`column`, `rows`, `values`, `table`, `meta`), or `null` when
+ * the column has no footer component.
+ */
+export function Footer<TRow>(props: FooterProps<TRow>): ReactNode {
+  const { table, column, rows } = props;
+  const store = storeOf(table);
+  const component = column.column.footer;
+  const meta = useSource(metaSource(store));
+  const values = useMemo(() => footerValues(column, rows), [column, rows]);
+  const footer = useMemo(() => ({ column, rows, values, table, meta }), [column, rows, values, table, meta]);
+  if (component === undefined || component === null) return null;
+  return createElement(asComponent<{ readonly footer: typeof footer }>(component), { footer });
 }
