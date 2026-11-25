@@ -7,6 +7,11 @@ import { problem } from "./problem.js";
 // reads, set from the store's listener and dropped with the owner. On the
 // server every reader returns the store's server snapshot and subscribes to
 // nothing.
+//
+// The memos and effects below exist only on the client, so they're
+// `transparent`: one that took a hydration id would shift the ids of every
+// later sibling, and Solid would build that part of the page from scratch,
+// detached, instead of hydrating the server's markup.
 
 /** A table of any rows and features. Every primitive takes one. */
 export type AnyTable = Table<never>;
@@ -101,14 +106,14 @@ export function reader<S>(read: () => S, serverRead: () => S, subscribe: (listen
 export function keyedReader<S>(key: Key, make: (key: string) => Accessor<S>): Accessor<S> {
   if (typeof key === "string") return make(key);
   if (isServer || getOwner() === null) return () => make(key())();
-  const current = createMemo(() => make(key()));
+  const current = createMemo(() => make(key()), { transparent: true });
   return () => current()();
 }
 
 /** `read` passed through `select`, as a memo when there is an owner, so equal results don't wake readers. */
 export function selected<S, T>(read: Accessor<S>, select: (value: S) => T): Accessor<T> {
   if (isServer || getOwner() === null) return () => select(read());
-  return createMemo(() => select(read()));
+  return createMemo(() => select(read()), { transparent: true });
 }
 
 /** What a primitive returns when the table lacks the feature it asks for: always undefined. */
@@ -117,5 +122,5 @@ export const nothing = (): undefined => undefined;
 /** `compute` as a memo when there is an owner, and as a plain function on the server or with no owner. */
 export function derived<T>(compute: () => T): Accessor<T> {
   if (isServer || getOwner() === null) return compute;
-  return createMemo(compute);
+  return createMemo(compute, { transparent: true });
 }

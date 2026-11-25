@@ -93,7 +93,7 @@ export function createTable<TDef extends AnyTableDef>(def: TDef, options?: Creat
       table.flush();
       if (metaChanged) setMeta(() => store.meta);
     },
-    { defer: true },
+    { defer: true, transparent: true },
   );
   return table;
 }
@@ -170,16 +170,16 @@ export function createTableRows<TRow>(
   if (isServer || getOwner() === null) return compute;
   const [version, setVersion] = createSignal(0, { ownedWrite: true });
   const bump = () => setVersion((n) => n + 1);
-  const withRequest = createMemo(() => resolve()?.requestKey !== undefined);
+  const withRequest = createMemo(() => resolve()?.requestKey !== undefined, { transparent: true });
   const subscribed = createMemo(() => {
     onCleanup(subscribeRows(store, withRequest(), bump));
     return true;
-  });
+  }, { transparent: true });
   return createMemo(() => {
     subscribed();
     version();
     return compute();
-  });
+  }, { transparent: true });
 }
 
 /**
