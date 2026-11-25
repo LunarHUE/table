@@ -24,7 +24,10 @@
   "types": "./dist/cjs/index.d.ts",
   "exports": {
     ".": {
-      "@lunarhue/source": "./src/index.ts",
+      "@lunarhue/source": {
+        "react-server": "./src/server.ts",
+        "default": "./src/index.ts"
+      },
       "react-server": {
         "import": {
           "types": "./dist/esm/server.d.ts",
