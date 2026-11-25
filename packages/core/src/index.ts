@@ -1,5 +1,6 @@
 // The framework-free core: reactive cells, keyed stores for rows, columns
-// and cells, diagnostics, and the bindings that let apps own state slices.
+// and cells, diagnostics, the bindings that let apps own state slices, and
+// `defineFeature`, which every table feature is made with.
 
 /** The package's name, as published. */
 export const coreName = "@lunarhue/table-core";
@@ -29,3 +30,55 @@ export {
   type StateCoordinator,
   type StateUpdater,
 } from "./bindings.js";
+export {
+  ROW_STAGE_PHASES,
+  type ColumnInfo,
+  type ColumnViewInfo,
+  type ColumnZone,
+  type JsonArray,
+  type JsonObject,
+  type JsonPrimitive,
+  type JsonValue,
+  type RowLike,
+  type RowsEffect,
+  type RowStagePhase,
+} from "./contract.js";
+export {
+  defineFeature,
+  hasFeature,
+  part,
+  resolveFeatures,
+  type AnyFeature,
+  type AnyFeatureFactory,
+  type AnyFeaturePart,
+  type Feature,
+  type FeatureApiContext,
+  type FeatureApiMap,
+  type FeatureApiOf,
+  type FeatureDef,
+  type FeatureFactory,
+  type FeatureFactoryLike,
+  type FeatureHost,
+  type FeatureNameOf,
+  type FeaturePart,
+  type FeatureRequestOf,
+  type FeatureStateMap,
+  type FeatureStateOf,
+  type FeatureStateReader,
+  type FeatureStateSeam,
+  type HasRequest,
+  type InitialState,
+  type MissingRequirements,
+  type OptionArgs,
+  type RequiredByFeatures,
+  type RequiredFeatureNames,
+  type RequiredFeatures,
+  type RequiredStateMap,
+  type Requirements,
+  type ResolvedFeatures,
+  type RowsEffectContext,
+  type RowStage,
+  type RowStageContext,
+  type ServerRequestMap,
+  type WriteOptions,
+} from "./feature.js";
