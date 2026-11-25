@@ -2,7 +2,8 @@
 // and cells, diagnostics, the bindings that let apps own state slices,
 // `defineFeature`, which every table feature is made with, `defineTable`
 // with its column helpers, the row and column pipelines,
-// `createTableStore`, which runs a table, and the built-in features.
+// `createTableStore`, which runs a table, and the built-in features:
+// pagination and selection.
 
 /** The package's name, as published. */
 export const coreName = "@lunarhue/table-core";
@@ -190,3 +191,23 @@ export {
   type RemoteFilteringFeature,
   type RemoteFilteringOptions,
 } from "./features/filtering.js";
+export {
+  computeSelectAllState,
+  computeSelectionSummary,
+  isRowSelected,
+  isSelected,
+  selectable,
+  selection,
+  type SelectableConfig,
+  type SelectAllState,
+  type SelectionApi,
+  type SelectionCellApi,
+  type SelectionHeaderApi,
+  type SelectionMode,
+  type SelectionOptions,
+  type SelectionResetPolicy,
+  type SelectionScope,
+  type SelectionState,
+  type SelectionSummary,
+  type SelectionTarget,
+} from "./features/selection.js";
