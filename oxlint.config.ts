@@ -49,8 +49,8 @@ export default defineConfig({
   },
   overrides: [
     {
-      // The React adapter and the React end-to-end apps follow the React Compiler's rules.
-      files: ["packages/react/**", "e2e/apps/react*/**"],
+      // The React adapter, the React end-to-end apps and the React example follow the React Compiler's rules.
+      files: ["packages/react/**", "e2e/apps/react*/**", "examples/react/**"],
       // An override's `plugins` replaces the base list.
       plugins: [...basePlugins, "react"],
       // `react` is a reserved plugin name, so the upstream plugin gets an alias.

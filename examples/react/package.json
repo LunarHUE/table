@@ -1,0 +1,26 @@
+{
+  "name": "@lunarhue/table-example-react",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Runnable examples of @lunarhue/table-react on React 19 with the React Compiler.",
+  "dependencies": {
+    "@lunarhue/table-core": "workspace:*",
+    "@lunarhue/table-react": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@babel/core": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "babel-plugin-react-compiler": "catalog:",
+    "vite": "catalog:"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

@@ -132,6 +132,36 @@
         "vite": "catalog:",
       },
     },
+    "examples/react": {
+      "name": "@lunarhue/table-example-react",
+      "version": "0.0.0",
+      "dependencies": {
+        "@lunarhue/table-core": "workspace:*",
+        "@lunarhue/table-react": "workspace:*",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+      },
+      "devDependencies": {
+        "@babel/core": "catalog:",
+        "@types/react": "catalog:",
+        "@types/react-dom": "catalog:",
+        "babel-plugin-react-compiler": "catalog:",
+        "vite": "catalog:",
+      },
+    },
+    "examples/solid": {
+      "name": "@lunarhue/table-example-solid",
+      "version": "0.0.0",
+      "dependencies": {
+        "@lunarhue/table-solid": "workspace:*",
+        "@solidjs/web": "catalog:",
+        "solid-js": "catalog:",
+      },
+      "devDependencies": {
+        "@solidjs/vite-plugin": "catalog:",
+        "vite": "catalog:",
+      },
+    },
     "packages/core": {
       "name": "@lunarhue/table-core",
       "version": "0.1.0",
@@ -386,6 +416,10 @@
     "@lunarhue/table-e2e-solid-shared": ["@lunarhue/table-e2e-solid-shared@workspace:e2e/apps/solid-shared"],
 
     "@lunarhue/table-e2e-solid2": ["@lunarhue/table-e2e-solid2@workspace:e2e/apps/solid2"],
+
+    "@lunarhue/table-example-react": ["@lunarhue/table-example-react@workspace:examples/react"],
+
+    "@lunarhue/table-example-solid": ["@lunarhue/table-example-solid@workspace:examples/solid"],
 
     "@lunarhue/table-react": ["@lunarhue/table-react@workspace:packages/react"],
 
