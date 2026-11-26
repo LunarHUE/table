@@ -1,7 +1,7 @@
 {
   "name": "@lunarhue/table-react",
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Headless tables for React.",
   "keywords": ["table", "data-grid", "headless", "react", "react-hooks", "typescript"],
   "homepage": "https://github.com/LunarHUE/table#readme",
